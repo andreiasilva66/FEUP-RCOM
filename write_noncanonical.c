@@ -27,7 +27,12 @@
 #define C 0x03
 #define BCC1 0x03 ^ 0x03
 
-volatile int STOP = FALSE;
+#define START 0
+#define FLAG_RCV 1
+#define A_RCV 2
+#define C_RCV 3
+#define BCC_OK 4
+#define STOP 5
 
 int alarmEnabled = FALSE;
 int alarmCount = 0;
@@ -112,47 +117,109 @@ int main(int argc, char *argv[])
 
     printf("New termios structure set\n");
     
+    int state = START;
+
+    // Create string to send
+    unsigned char buf[BUF_SIZE] = {0};
+
+    buf[0]=FLAG;
+    buf[1]=A;
+    buf[2]=C;
+    buf[3]=A ^ C;
+    buf[4]=FLAG;
+
+    buf[5] = '\n';
+
+    int bytes = write(fd, buf, BUF_SIZE);
+    printf("%d bytes written\n", bytes);
 
     do{
-        // Create string to send
-        unsigned char buf[BUF_SIZE] = {0};
+        // // Create string to send
+        // unsigned char buf[BUF_SIZE] = {0};
         
-        buf[0]=FLAG;
-        buf[1]=A;
-        buf[2]=C;
-        buf[3]=A ^ C;
-        buf[4]=FLAG;
+        // buf[0]=FLAG;
+        // buf[1]=A;
+        // buf[2]=C;
+        // buf[3]=A ^ C;
+        // buf[4]=FLAG;
         
         // In non-canonical mode, '\n' does not end the writing.
         // Test this condition by placing a '\n' in the middle of the buffer.
         // The whole buffer must be sent even with the '\n'.
-        buf[5] = '\n';
+        // buf[5] = '\n';
 
-        int bytes = write(fd, buf, BUF_SIZE);
-        printf("%d bytes written\n", bytes);
+        // int bytes = write(fd, buf, BUF_SIZE);
+        // printf("%d bytes written\n", bytes);
         
         
         
         unsigned char buf3[BUF_SIZE + 1] = {0};
-        int bytes2 = read(fd, buf3, BUF_SIZE);
+        int bytes2 = read(fd, buf3, 1);
+
+        if(!bytes2) continue;
+
         buf3[bytes2] = '\0';
 
         printf("%d bytes read\n", bytes2);
         
 
-        if(buf3[0] == 0x7E && buf3[1] == 0x01 && buf3[2] == 0x07 && buf3[3] == (0x01 ^ 0x07) && buf3[4] == 0x7E){
-            STOP = TRUE;
-            break;
+        switch(state){
+            case START:
+                if(buf3[0] == FLAG){
+                    state = FLAG_RCV;
+                }
+                break;
+            case FLAG_RCV:
+                if(buf3[0] == 0x01){
+                    state = A_RCV;
+                }
+                else if(buf3[0] == FLAG){
+                    continue;
+                }
+                else{
+                    state = START;
+                }
+                break;
+            case A_RCV:
+                if(buf3[0] == FLAG){
+                    state = FLAG;
+                }
+                else if(buf3[0] == 0x07){
+                    state = C_RCV;
+                }
+                else{
+                    state = START;
+                }
+                break;
+            case C_RCV:
+                if(buf3[0] == (0x01 ^ 0x07)){
+                    state = BCC_OK;
+                }
+                else if(buf3[0] == FLAG){
+                    state = FLAG;
+                }
+                else{
+                    state = START;
+                }
+                break;
+            case BCC_OK:
+                if(buf3[0] == FLAG){
+                    state = STOP;
+                }
+                else{
+                    state = START;
+                }
+                break;
         }
         
-        if(alarmEnabled == FALSE){
-            alarm(3);
-            alarmEnabled = TRUE;
-            sleep(3);
+        // if(alarmEnabled == FALSE){
+        //     alarm(3);
+        //     alarmEnabled = TRUE;
+        //     sleep(3);
         
-        }
+        // }
         
-    }while(!STOP && alarmCount < 3);
+    }while(state != STOP && alarmCount < 3);
     
     // Restore the old port settings
     if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
