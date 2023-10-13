@@ -26,7 +26,13 @@
 #define C 0x07
 #define BCC1 (A^C)
 
-volatile int STOP = FALSE;
+#define START 0
+#define FLAG_RCV 1
+#define A_RCV 2
+#define C_RCV 3
+#define BCC_OK 4
+#define STOP 5
+
 
 int main(int argc, char *argv[])
 {
@@ -96,17 +102,67 @@ int main(int argc, char *argv[])
     // Loop for input
     unsigned char buf[BUF_SIZE + 1] = {0}; // +1: Save space for the final '\0' char
 
-    while (STOP == FALSE)
+    int state = START;
+
+    while (state != STOP)
     {
         // Returns after 5 chars have been input
-        int bytes = read(fd, buf, BUF_SIZE);
+        int bytes = read(fd, buf, 1);
+        
+        if(!bytes) continue;
+
         buf[bytes] = '\0'; // Set end of string to '\0', so we can printf
 
         printf("%x\n",buf[0]);
         printf(":%s:%d\n", buf, bytes);
         
-        if (buf[0] == 0x7E && buf[1]==0x03 && buf[2] == 0x03 && buf[3] == 0x00 && buf[4]== 0x7E){
-            STOP = TRUE;
+        switch(state){
+            case START:
+                if(buf[0] == FLAG){
+                    state = FLAG_RCV;
+                }
+                break;
+            case FLAG_RCV:
+                if(buf[0] == 0x03){
+                    state = A_RCV;
+                }
+                else if(buf[0] == FLAG){
+                    continue;
+                }
+                else{
+                    state = START;
+                }
+                break;
+            case A_RCV:
+                if(buf[0] == FLAG){
+                    state = FLAG;
+                }
+                else if(buf[0] == 0x03){
+                    state = C_RCV;
+                }
+                else{
+                    state = START;
+                }
+                break;
+            case C_RCV:
+                if(buf[0] == (0x03 ^ 0x03)){
+                    state = BCC_OK;
+                }
+                else if(buf[0] == FLAG){
+                    state = FLAG;
+                }
+                else{
+                    state = START;
+                }
+                break;
+            case BCC_OK:
+                if(buf[0] == FLAG){
+                    state = STOP;
+                }
+                else{
+                    state = START;
+                }
+                break;
         }
     }
 
