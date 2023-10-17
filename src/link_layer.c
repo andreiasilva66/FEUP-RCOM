@@ -5,6 +5,11 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <termios.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <fcntl.h>
 
 #define BIT(n) 1 << n
 
@@ -34,7 +39,7 @@ int txStateMachine(enum linkState *state, int fd) {
     
     unsigned char byte;
     
-    while(state != STOP){
+    while(*state != STOP){
         if(read(fd, &byte, 1) > 0){
             switch (*state){
             case START:
@@ -79,6 +84,7 @@ int txStateMachine(enum linkState *state, int fd) {
             }
         }
     }
+    return 0;
 }
 
 
@@ -86,7 +92,7 @@ int rcStateMachine(enum linkState *state, int fd) {
     
     unsigned char byte;
     
-    while(state != STOP){
+    while(*state != STOP){
         if(read(fd, &byte, 1) > 0){
             switch (*state){
             case START:
@@ -131,6 +137,7 @@ int rcStateMachine(enum linkState *state, int fd) {
             }
         }
     }
+    return 0;
 }
 
 int connectSerialPort(char serialPort[50]){
@@ -188,7 +195,7 @@ int llopen(LinkLayer connectionParameters)
 
         while(connectionParameters.nRetransmissions > 0){
             unsigned char frame[5] = {FLAG, A_TX, C_SET, (A_TX ^ C_SET), FLAG};
-            int bytes = write(fd, frame, 5);
+            write(fd, frame, 5);
             txStateMachine(&state, fd);
             connectionParameters.nRetransmissions--;
         }
@@ -199,7 +206,7 @@ int llopen(LinkLayer connectionParameters)
     case LlRx:
         rcStateMachine(&state, fd);
         unsigned char frame[5] = {FLAG, A_RC, C_UA, (A_RC ^ C_UA), FLAG};
-        int bytes = write(fd, frame, 5);
+        write(fd, frame, 5);
         break;
     
     default:
