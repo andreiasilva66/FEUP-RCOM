@@ -20,6 +20,8 @@ enum linkState{
     A_RCV,
     C_RCV,
     BCC_OK,
+    READING_DATA,
+    FOUND_DATA,
     STOP
 };
 
@@ -33,10 +35,14 @@ enum linkState{
 #define C_RR(n) ((n << 7) | 0x05)
 #define C_REJ(n) ((n << 7) | 0x01)
 #define C_DISC 0x0B
+#define ESC 0x7D
 #define BAUDRATE B38400
 
 int alarmEnabled = FALSE;
 int alarmCount = 0;
+
+unsigned char tramaTx = 0;
+unsigned char tramaRx = 1;
 
 // Alarm function handler
 void alarmHandler(int signal)
@@ -338,11 +344,90 @@ int llwrite(const unsigned char *buf, int bufSize)
 ////////////////////////////////////////////////
 // LLREAD
 ////////////////////////////////////////////////
-int llread(unsigned char *packet)
-{
-    // TODO
+int llread(unsigned char *packet){
+    unsigned char byte, field;
+    int i = 0;
+    enum linkState state = START;
+    while(state != STOP){
+        if(read(fd, &byte, 1) > 0){
+            switch (state){
+            case START:
+                if(byte == FLAG) 
+                    state = FLAG_RCV;
+                break;
 
-    return 0;
+            case FLAG_RCV:
+                if(byte == A_TX) 
+                    state = A_RCV;
+                else if(byte != FLAG)
+                    state = START;
+                break;
+            
+            case A_RCV:
+                if(byte == C_SET){
+                    state = C_RCV;
+                    field = byte;
+                }
+                    
+                else if(byte == FLAG)
+                    state = FLAG;
+                else
+                    state = START;
+                break;
+
+            case C_RCV:
+                if(byte == (field ^ A_TX)) 
+                    state = READING_DATA;
+                else if(byte == FLAG)
+                    state = FLAG;
+                else
+                    state = START;
+                break;
+            case READING_DATA:
+                    if (byte == ESC) state = FOUND_DATA;
+                    else if (byte == FLAG){
+                        unsigned char bcc2 = packet[i-1];
+                        i--;
+                        packet[i] = '\0';
+                        unsigned char acc = packet[0];
+
+                        for (unsigned int j = 1; j < i; j++)
+                            acc ^= packet[j];
+
+                        if (bcc2 == acc){
+                            state = STOP;
+                            //sendSupervisionFrame(fd, A_RC, C_RR(tramaRx));
+                            unsigned char frame[5] = {FLAG, A_TX, C_SET, (A_RC ^ C_RR(tramaRx)), FLAG};
+                            write(fd, frame, 5);
+                            tramaRx = (tramaRx + 1)%2;
+                            return i; 
+                        }
+                        else{
+                            printf("Error: retransmition\n");
+                            unsigned char frame[5] = {FLAG, A_TX, C_SET, (A_RC ^ C_REJ(tramaRx)), FLAG};
+                            write(fd, frame, 5);
+                            return -1;
+                        };
+
+                    }
+                    else{
+                        packet[i++] = byte;
+                    }
+                    break;
+            case FOUND_DATA:
+                    state = READING_DATA;
+                    if (byte == ESC || byte == FLAG) packet[i++] = byte;
+                    else{
+                        packet[i++] = ESC;
+                        packet[i++] = byte;
+                    }
+                    break;
+            default:
+                break;
+            }
+        }
+    }
+    return -1;
 }
 
 ////////////////////////////////////////////////
