@@ -41,7 +41,7 @@ int alarmCount = 0;
 // Alarm function handler
 void alarmHandler(int signal)
 {
-    alarmEnabled = FALSE;
+    alarmEnabled = TRUE;
     alarmCount++;
 
     printf("Alarm #%d\n", alarmCount);
@@ -51,7 +51,7 @@ int rcFrameCount = 0;
 int nRetransmissions;
 int fd;
 
-int txStateMachine(enum linkState *state) {
+int txStateMachine(enum linkState *state, int fd) {
     
     unsigned char byte;
     
@@ -99,18 +99,12 @@ int txStateMachine(enum linkState *state) {
                 break;
             }
         }
-        if(alarmEnabled == FALSE){
-            alarm(3);
-            alarmEnabled = TRUE;
-            sleep(3);
-        
-        }
     }
     return 0;
 }
 
 
-int rcStateMachine(enum linkState *state) {
+int rcStateMachine(enum linkState *state, int fd) {
     
     unsigned char byte;
     
@@ -211,7 +205,7 @@ int llopen(LinkLayer connectionParameters){
         return -1;
 
     switch (connectionParameters.role){
-        case LlTx:
+        case LlTx:{
             (void) signal(SIGALRM, alarmHandler);
             while(connectionParameters.nRetransmissions > 0){
                 unsigned char frame[5] = {FLAG, A_TX, C_SET, (A_TX ^ C_SET), FLAG};
@@ -223,28 +217,19 @@ int llopen(LinkLayer connectionParameters){
             }
             if (state != STOP) return -1;
             break;
-
-        case LlRx:
+        }
+        case LlRx:{
             rcStateMachine(&state, fd);
             unsigned char frame[5] = {FLAG, A_RC, C_UA, (A_RC ^ C_UA), FLAG};
             write(fd, frame, 5);
-            txStateMachine(&state);
-            connectionParameters.nRetransmissions--;
+            txStateMachine(&state, fd);
+            //if (state != STOP) return -1;
+            break;
         }
-        
-        if (state != STOP) return -1;
-        break;
-
-    case LlRx:
-        rcStateMachine(&state);
-        unsigned char frame[5] = {FLAG, A_RC, C_UA, (A_RC ^ C_UA), FLAG};
-        write(fd, frame, 5);
-        break;
-    
-    default:
-        return -1;
-        break;
-    }
+        default:
+            return -1;
+            break;
+        }
 
     return fd;
 }
