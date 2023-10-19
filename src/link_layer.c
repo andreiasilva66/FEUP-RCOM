@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <signal.h>
 
 #define BIT(n) 1 << n
 
@@ -34,12 +35,23 @@ enum linkState{
 #define C_DISC 0x0B
 #define BAUDRATE B38400
 
+int alarmEnabled = FALSE;
+int alarmCount = 0;
+
+// Alarm function handler
+void alarmHandler(int signal)
+{
+    alarmEnabled = FALSE;
+    alarmCount++;
+
+    printf("Alarm #%d\n", alarmCount);
+}
 
 int txStateMachine(enum linkState *state, int fd) {
     
     unsigned char byte;
     
-    while(*state != STOP){
+    while(*state != STOP && alarmCount < 3){
         if(read(fd, &byte, 1) > 0){
             switch (*state){
             case START:
@@ -82,6 +94,12 @@ int txStateMachine(enum linkState *state, int fd) {
             default:
                 break;
             }
+        }
+        if(alarmEnabled == FALSE){
+            alarm(3);
+            alarmEnabled = TRUE;
+            sleep(3);
+        
         }
     }
     return 0;
@@ -181,37 +199,36 @@ int connectSerialPort(char serialPort[50]){
 ////////////////////////////////////////////////
 // LLOPEN
 ////////////////////////////////////////////////
-int llopen(LinkLayer connectionParameters)
-{
+int llopen(LinkLayer connectionParameters){
     enum linkState state = START;
 
     int fd = connectSerialPort(connectionParameters.serialPort);
     if(fd < 0)
         return -1;
 
-    switch (connectionParameters.role)
-    {
-    case LlTx:
+    switch (connectionParameters.role){
+        case LlTx:
+            (void) signal(SIGALRM, alarmHandler);
+            while(connectionParameters.nRetransmissions > 0){
+                unsigned char frame[5] = {FLAG, A_TX, C_SET, (A_TX ^ C_SET), FLAG};
+                write(fd, frame, 5);
+                alarm(connectionParameters.timeout);
+                alarmEnabled = FALSE;
+                txStateMachine(&state, fd);
+                connectionParameters.nRetransmissions--;
+            }
+            if (state != STOP) return -1;
+            break;
 
-        while(connectionParameters.nRetransmissions > 0){
-            unsigned char frame[5] = {FLAG, A_TX, C_SET, (A_TX ^ C_SET), FLAG};
+        case LlRx:
+            rcStateMachine(&state, fd);
+            unsigned char frame[5] = {FLAG, A_RC, C_UA, (A_RC ^ C_UA), FLAG};
             write(fd, frame, 5);
-            txStateMachine(&state, fd);
-            connectionParameters.nRetransmissions--;
-        }
+            break;
         
-        if (state != STOP) return -1;
-        break;
-
-    case LlRx:
-        rcStateMachine(&state, fd);
-        unsigned char frame[5] = {FLAG, A_RC, C_UA, (A_RC ^ C_UA), FLAG};
-        write(fd, frame, 5);
-        break;
-    
-    default:
-        return -1;
-        break;
+        default:
+            return -1;
+            break;
     }
 
     return fd;

@@ -40,7 +40,7 @@ int alarmCount = 0;
 // Alarm function handler
 void alarmHandler(int signal)
 {
-    alarmEnabled = FALSE;
+    alarmEnabled = TRUE;
     alarmCount++;
 
     printf("Alarm #%d\n", alarmCount);
