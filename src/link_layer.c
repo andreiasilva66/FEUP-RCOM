@@ -34,8 +34,12 @@ enum linkState{
 #define C_DISC 0x0B
 #define BAUDRATE B38400
 
+int txFrameCount = 0;
+int rcFrameCount = 0;
+int nRetransmissions;
+int fd;
 
-int txStateMachine(enum linkState *state, int fd) {
+int txStateMachine(enum linkState *state) {
     
     unsigned char byte;
     
@@ -88,7 +92,7 @@ int txStateMachine(enum linkState *state, int fd) {
 }
 
 
-int rcStateMachine(enum linkState *state, int fd) {
+int rcStateMachine(enum linkState *state) {
     
     unsigned char byte;
     
@@ -142,7 +146,7 @@ int rcStateMachine(enum linkState *state, int fd) {
 
 int connectSerialPort(char serialPort[50]){
 
-    int fd = open(serialPort, O_RDWR | O_NOCTTY);
+    fd = open(serialPort, O_RDWR | O_NOCTTY);
 
     if (fd < 0){
         perror(serialPort);
@@ -183,6 +187,8 @@ int connectSerialPort(char serialPort[50]){
 ////////////////////////////////////////////////
 int llopen(LinkLayer connectionParameters)
 {
+    nRetransmissions = connectionParameters.nRetransmissions;
+
     enum linkState state = START;
 
     int fd = connectSerialPort(connectionParameters.serialPort);
@@ -196,7 +202,7 @@ int llopen(LinkLayer connectionParameters)
         while(connectionParameters.nRetransmissions > 0){
             unsigned char frame[5] = {FLAG, A_TX, C_SET, (A_TX ^ C_SET), FLAG};
             write(fd, frame, 5);
-            txStateMachine(&state, fd);
+            txStateMachine(&state);
             connectionParameters.nRetransmissions--;
         }
         
@@ -204,7 +210,7 @@ int llopen(LinkLayer connectionParameters)
         break;
 
     case LlRx:
-        rcStateMachine(&state, fd);
+        rcStateMachine(&state);
         unsigned char frame[5] = {FLAG, A_RC, C_UA, (A_RC ^ C_UA), FLAG};
         write(fd, frame, 5);
         break;
@@ -217,14 +223,105 @@ int llopen(LinkLayer connectionParameters)
     return fd;
 }
 
+
+int getCtrlInfo(){
+    unsigned char byte;
+    unsigned char c;
+    enum linkState state = START;
+
+    while(state != STOP){
+        if(read(fd, &byte, 1) > 0){
+            switch (state){
+                case START:
+                    if(byte == FLAG) 
+                        state = FLAG_RCV;
+                    break;
+
+                case FLAG_RCV:
+                    if(byte == A_RC) 
+                        state = A_RCV;
+                    else if(byte != FLAG)
+                        state = START;
+                    break;
+                
+                case A_RCV:
+                    if(byte == C_RR(0) || byte == C_RR(1) || byte == C_REJ(0) || byte == C_REJ(1) || C_DISC) {
+                        state = C_RCV;
+                        c = byte;
+                    }
+                    else if(byte == FLAG)
+                        state = FLAG;
+                    else
+                        state = START;
+                    break;
+
+                case C_RCV:
+                    if(byte == (c ^ A_RC)) 
+                        state = BCC_OK;
+                    else if(byte == FLAG)
+                        state = FLAG;
+                    else
+                        state = START;
+                    break;
+
+                case BCC_OK:
+                    if(byte == FLAG) 
+                        state = STOP;
+                    else
+                        state = START;
+                    break;
+
+                default:
+                    break;
+            }
+        }
+    }
+    return c;
+}
+
+
 ////////////////////////////////////////////////
 // LLWRITE
 ////////////////////////////////////////////////
 int llwrite(const unsigned char *buf, int bufSize)
 {
-    // TODO
+    unsigned char frame[bufSize+6];
+    frame[0] = FLAG;
+    frame[1] = A_TX;
+    frame[2] = C_REJ(txFrameCount);
+    frame[3] = (A_TX ^ C_REJ(txFrameCount));
 
-    return 0;
+    memcpy(frame+4, buf, bufSize);
+    unsigned char bcc2 = 0;
+
+    for(int i = 0; i < bufSize; i++){
+        bcc2 ^= buf[i];
+    }
+
+    frame[bufSize+4] = bcc2;
+    frame[bufSize+5] = FLAG;
+
+    int transmissionsDone = 0;
+
+    while( transmissionsDone <= nRetransmissions ){
+
+        write(fd,frame, bufSize+6);
+        unsigned char c = getCtrlInfo();
+
+        if ( c == C_RR(0) || c == C_RR(1) ){
+            txFrameCount++;
+            break;
+        }
+
+        transmissionsDone++;
+    }
+
+    if( transmissionsDone <= nRetransmissions){
+        return 1;
+    }
+    
+    // tem de se fechar antes
+    return -1;
 }
 
 ////////////////////////////////////////////////
