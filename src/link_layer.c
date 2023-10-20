@@ -29,6 +29,13 @@ enum linkState{
 #define A_RC 0x01
 #define C_SET 0x03
 #define C_UA 0x07
+#define C_RR0 0x05
+#define C_RR1 0x85
+#define C_REJ0 0x01
+#define C_REJ1 0x81
+#define C_N0 0x00
+#define C_N1 0x40
+
 #define C_RR(n) ((n << 7) | 0x05)
 #define C_REJ(n) ((n << 7) | 0x01)
 #define C_DISC 0x0B
@@ -245,7 +252,7 @@ int getCtrlInfo(){
                     break;
                 
                 case A_RCV:
-                    if(byte == C_RR(0) || byte == C_RR(1) || byte == C_REJ(0) || byte == C_REJ(1) || C_DISC) {
+                    if(byte == C_RR0 || byte == C_RR1 || byte == C_REJ0 || byte == C_REJ1 || C_DISC) {
                         state = C_RCV;
                         c = byte;
                     }
@@ -285,11 +292,13 @@ int getCtrlInfo(){
 ////////////////////////////////////////////////
 int llwrite(const unsigned char *buf, int bufSize)
 {
+    unsigned char c;
     unsigned char frame[bufSize+6];
     frame[0] = FLAG;
     frame[1] = A_TX;
-    frame[2] = C_REJ(txFrameCount);
-    frame[3] = (A_TX ^ C_REJ(txFrameCount));
+    if(txFrameCount%2 == 0) frame[2] = C_N0;
+    else frame[2] = C_N1;
+    frame[3] = (A_TX ^ frame[2]);
 
     memcpy(frame+4, buf, bufSize);
     unsigned char bcc2 = 0;
@@ -308,7 +317,7 @@ int llwrite(const unsigned char *buf, int bufSize)
         write(fd,frame, bufSize+6);
         unsigned char c = getCtrlInfo();
 
-        if ( c == C_RR(0) || c == C_RR(1) ){
+        if ( c == C_RR0 || c == C_RR1 ){
             txFrameCount++;
             break;
         }
