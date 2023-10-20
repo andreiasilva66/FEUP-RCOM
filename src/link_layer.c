@@ -52,8 +52,7 @@ unsigned char tramaTx = 0;
 unsigned char tramaRx = 1;
 
 // Alarm function handler
-void alarmHandler(int signal)
-{
+void alarmHandler(int signal){
     alarmEnabled = TRUE;
     alarmCount++;
 
@@ -61,7 +60,8 @@ void alarmHandler(int signal)
 }
 int txFrameCount = 0;
 int rcFrameCount = 0;
-int nRetransmissions;
+int nRetransmissions = 0;
+int timeout = 0;
 int fd;
 
 int txStateMachine(enum linkState *state, int fd) {
@@ -212,7 +212,7 @@ int connectSerialPort(char serialPort[50]){
 ////////////////////////////////////////////////
 int llopen(LinkLayer connectionParameters){
     enum linkState state = START;
-
+    timeout = connectionParameters.timeout;
     int fd = connectSerialPort(connectionParameters.serialPort);
     if(fd < 0)
         return -1;
@@ -307,9 +307,7 @@ int getCtrlInfo(){
 ////////////////////////////////////////////////
 // LLWRITE
 ////////////////////////////////////////////////
-int llwrite(const unsigned char *buf, int bufSize)
-{
-    unsigned char c;
+int llwrite(const unsigned char *buf, int bufSize){
     unsigned char frame[bufSize+6];
     frame[0] = FLAG;
     frame[1] = A_TX;
@@ -405,7 +403,6 @@ int llread(unsigned char *packet){
 
                         if (bcc2 == acc){
                             state = STOP;
-                            //sendSupervisionFrame(fd, A_RC, C_RR(tramaRx));
                             unsigned char frame[5] = {FLAG, A_TX, C_SET, (A_RC ^ C_RR(tramaRx)), FLAG};
                             write(fd, frame, 5);
                             tramaRx = (tramaRx + 1)%2;
@@ -442,9 +439,64 @@ int llread(unsigned char *packet){
 ////////////////////////////////////////////////
 // LLCLOSE
 ////////////////////////////////////////////////
-int llclose(int showStatistics)
-{
-    // TODO
+int llclose(int showStatistics){
+    enum linkState state = START;
+    unsigned char byte;
+    (void) signal(SIGALRM, alarmHandler);
+    while(nRetransmissions != 0 && state != STOP){
+        unsigned char FRAME[5] = {FLAG, A_TX, C_DISC, A_TX ^ C_DISC, FLAG};
+        write(fd, FRAME, 5);
+        alarm(timeout);
+        alarmEnabled = FALSE;
 
-    return 1;
+        while(alarmEnabled == FALSE && state != STOP){
+            if(read(fd, &byte, 1) > 0){
+                switch (state){
+                case START:
+                    if(byte == FLAG) 
+                        state = FLAG_RCV;
+                    break;
+
+                case FLAG_RCV:
+                    if(byte == A_RC) 
+                        state = A_RCV;
+                    else if(byte != FLAG)
+                        state = START;
+                    break;
+                
+                case A_RCV:
+                    if(byte == C_DISC) 
+                        state = C_RCV;
+                    else if(byte == FLAG)
+                        state = FLAG;
+                    else
+                        state = START;
+                    break;
+
+                case C_RCV:
+                    if(byte == (C_DISC ^ A_RC)) 
+                        state = BCC_OK;
+                    else if(byte == FLAG)
+                        state = FLAG;
+                    else
+                        state = START;
+                    break;
+
+                case BCC_OK:
+                    if(byte == FLAG) 
+                        state = STOP;
+                    else
+                        state = START;
+                    break;
+
+                default:
+                    break;
+                }
+            }
+        }
+    }
+    if(state != STOP) return -1;
+    unsigned char FRAME[5] = {FLAG, A_TX, C_UA, A_TX ^ C_UA, FLAG};
+    write(fd, FRAME, 5);
+    return close(fd);
 }
