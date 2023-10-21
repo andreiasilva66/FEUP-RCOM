@@ -326,26 +326,33 @@ int llwrite(const unsigned char *buf, int bufSize){
     frame[bufSize+5] = FLAG;
 
     int transmissionsDone = 0;
+    int accepted,rejected = 0;
 
     while( transmissionsDone <= nRetransmissions ){
-
-        write(fd,frame, bufSize+6);
-        unsigned char c = getCtrlInfo();
-
-        if ( c == C_RR0 || c == C_RR1 ){
-            txFrameCount++;
-            break;
-        }
-
+        alarmEnabled = FALSE;
+        alarm(timeout);
+        accepted = 0;
+        rejected = 0;
+        while(alarmEnabled == FALSE && accepted == 0 && rejected == 0){
+            write(fd,frame, bufSize+6);
+            unsigned char c = getCtrlInfo();
+            if(c == 0){
+                continue;
+            }
+            else if(c == C_REJ0 || c == C_REJ1){
+                rejected = 1;
+            }
+            else if(c == C_RR0 || c == C_RR1){
+                accepted = 1;
+            }else continue;
+        }if(accepted) break;
         transmissionsDone++;
     }
-
-    if( transmissionsDone <= nRetransmissions){
-        return 1;
+    if( accepted)return bufSize+6;
+    else{
+        llclose(fd);
+        return -1;
     }
-    
-    // tem de se fechar antes
-    return -1;
 }
 
 ////////////////////////////////////////////////
