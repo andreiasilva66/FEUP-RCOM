@@ -196,8 +196,8 @@ int connectSerialPort(char serialPort[50]){
 
     // Set input mode
     newtio.c_lflag = 0;
-    newtio.c_cc[VTIME] = 0;
-    newtio.c_cc[VMIN] = 5;
+    newtio.c_cc[VTIME] = 5;
+    newtio.c_cc[VMIN] = 0;
 
     if(tcsetattr(fd, TCSANOW, &newtio) == -1){
         perror("tcsettattr");
@@ -243,7 +243,7 @@ int llopen(LinkLayer connectionParameters){
             return -1;
             break;
         }
-
+        
     return fd;
 }
 
@@ -309,7 +309,6 @@ int getCtrlInfo(){
 ////////////////////////////////////////////////
 int llwrite(const unsigned char *buf, int bufSize)
 {
-    unsigned char c;
     unsigned char frame[bufSize+6];
     frame[0] = FLAG;
     frame[1] = A_TX;
