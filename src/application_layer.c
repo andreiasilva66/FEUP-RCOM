@@ -10,7 +10,7 @@
 
 
 unsigned char* getCtrlPacket(int which, const char* fileName, long int length){
-    const int length1 = (int)ceil(log2f((float)length)/8.0);
+    const int length1 = (length +7)>>3;
     const int length2 = strlen(fileName);
     long int fileSize = 3 + length1 + 2 + length2;
 
