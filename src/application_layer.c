@@ -9,12 +9,12 @@
 #include <stdlib.h>
 
 
-unsigned char* getCtrlPacket(int which, const char* fileName, long int length, long int* fileSize){
+unsigned char* getCtrlPacket(int which, const char* fileName, long int length, size_t* fileSize){
     const int length1 = (int)ceil(log2f((float)length)/8.0);
     const int length2 = strlen(fileName);
-    fileSize = 3 + length1 + 2 + length2;
+    *fileSize = 3 + length1 + 2 + length2;
 
-    unsigned char* ctrlPacket = (unsigned char*)malloc(fileSize);
+    unsigned char* ctrlPacket = (unsigned char*)malloc(*fileSize);
 
     ctrlPacket[0] = which;
     ctrlPacket[1] = 0;
@@ -122,7 +122,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             long int fileSize = ftell(file) - prev;
             fseek(file, prev, SEEK_SET);
 
-            unsigned int cpSize;
+            size_t cpSize;
             unsigned char *ctrlPacketStart = getCtrlPacket(2, filename, fileSize, &cpSize);
             if(llwrite(ctrlPacketStart, cpSize) < 0){
                 printf("Error sending control packet\n");
@@ -146,7 +146,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 which = !which;
             }
 
-            unsigned char* endCtrl = getCtrlPacket(3, filename, fileSize);
+            unsigned char* endCtrl = getCtrlPacket(3, filename, ,fileSize);
 
             if(llwrite(endCtrl, fileSize + 5) < 0){
                 printf("Error sending end control packet\n");
