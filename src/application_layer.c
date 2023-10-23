@@ -8,12 +8,52 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
+
+unsigned char* getCtrlPacket(int which, const char* fileName, long int length){
+    const int length1 = (int)ceil(log2f((float)length)/8.0);
+    const int length2 = strlen(fileName);
+    long int fileSize = 3 + length1 + 2 + length2;
+
+    unsigned char* ctrlPacket = (unsigned char*)malloc(fileSize);
+
+    ctrlPacket[0] = which;
+    ctrlPacket[1] = 0;
+    ctrlPacket[2] = length1;
+
+    for(int i = 0; i < length1; i++){
+        ctrlPacket[2 + length1 - i] = length & 0xFF;
+        length >>= 8;
+    }
+
+    ctrlPacket[3 + length1] = 1;
+    ctrlPacket[4 + length1] = length2;
+
+    memcpy(ctrlPacket + length1 + 4, fileName, length2);
+
+    return ctrlPacket;
+}
+
+unsigned char* getDataPacket(int which, unsigned char* data, int dataSize, int *packetLen) {
+	*packetLen = dataSize + 4;
+	
+	unsigned char* packet = (unsigned char*) malloc(*packetLen);
+	
+	packet[0] = 1;
+	packet[1] = which;
+	packet[2] = dataSize >> 8 & 0xFF;
+	packet[3] = dataSize & 0xFF;
+	
+	memcpy(packet + 4, data, dataSize);
+	
+	return packet;
+}
+
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename){
     LinkLayer linkLayer;
     strcpy(linkLayer.serialPort,serialPort);
-    if(*role == "tx") linkLayer.role = LlTx;
-    else if(*role == "rx") linkLayer.role = LlRx;
+    if(strcmp(role,"tx")) linkLayer.role = LlTx;
+    else if(strcmp(role,"rx")) linkLayer.role = LlRx;
     else printf("Invalid role\n");
     linkLayer.baudRate = baudRate;
     linkLayer.nRetransmissions = nTries;
@@ -22,22 +62,6 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         printf("Connection error\n");
     }
 
-    // if(role == "tx"){
-
-    //     FILE* file = fopen(filename, "rb");
-    //     if(file == NULL){
-    //         printf("Couldn't read file");
-    //     }
-
-    //     // Get size of file
-
-    //     int fileStart = ftell(file);
-    //     fseek(file, 0L, SEEK_END);
-    //     int fileSize = ftell(file) - fileStart;
-    //     fseek(file, fileStart, SEEK_SET);
-
-        
-    // }
 
     int bufSize = MAX_PAYLOAD_SIZE -1;
     unsigned char buf[bufSize + 1];
@@ -45,7 +69,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     switch (linkLayer.role){
         case LlRx:{
             int packetSize = -1;
-            unsigned char* packet = (unsigned char)malloc(MAX_PAYLOAD_SIZE);
+            unsigned char* packet = (unsigned char*)malloc(MAX_PAYLOAD_SIZE);
             if((packetSize = llread(packet)) < 0){
                 printf("Error reading packet\n");
                 exit(-1);
@@ -99,7 +123,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             fseek(file, prev, SEEK_SET);
 
             unsigned int cpSize;
-            unsigned char *ctrlPacketStart = getCtrlPacket(2, filename, fileSize);
+            unsigned char *ctrlPacketStart = getCtrlPacket(2, &filename, fileSize);
             if(llwrite(ctrlPacketStart, cpSize) < 0){
                 printf("Error sending control packet\n");
                 exit(-1);
@@ -139,41 +163,3 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
 }
 
-unsigned char* getCtrlPacket(int which, const char* fileName, long int length){
-    const int length1 = (int)ceil(log2f((float)length)/8.0);
-    const int length2 = strlen(fileName);
-    long int fileSize = 3 + length1 + 2 + length2;
-
-    unsigned char* ctrlPacket = (unsigned char*)malloc(fileSize);
-
-    ctrlPacket[0] = which;
-    ctrlPacket[1] = 0;
-    ctrlPacket[2] = length1;
-
-    for(int i = 0; i < length1; i++){
-        ctrlPacket[2 + length1 - i] = length & 0xFF;
-        length >>= 8;
-    }
-
-    ctrlPacket[3 + length1] = 1;
-    ctrlPacket[4 + length1] = length2;
-
-    memcpy(ctrlPacket + length1 + 4, fileName, length2);
-
-    return ctrlPacket;
-}
-
-unsigned char* getDataPacket(int which, unsigned char* data, int dataSize, int *packetLen) {
-	*packetLen = dataSize + 4;
-	
-	unsigned char* packet = (unsigned char*) malloc(packetLen);
-	
-	packet[0] = 1;
-	packet[1] = which;
-	packet[2] = dataSize >> 8 & 0xFF;
-	packet[3] = dataSize & 0xFF;
-	
-	memcpy(packet + 4, data, dataSize);
-	
-	return packet;
-}

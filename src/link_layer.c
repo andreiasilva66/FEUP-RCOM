@@ -64,7 +64,7 @@ int nRetransmissions = 0;
 int timeout = 0;
 int fd;
 
-int txStateMachine(enum linkState *state, int fd) {
+int txStateMachine(enum linkState *state) {
     
     unsigned char byte;
     
@@ -117,7 +117,7 @@ int txStateMachine(enum linkState *state, int fd) {
 }
 
 
-int rcStateMachine(enum linkState *state, int fd) {
+int rcStateMachine(enum linkState *state) {
     
     unsigned char byte;
     
@@ -204,7 +204,7 @@ int connectSerialPort(char serialPort[50]){
         return -1;
     }
 
-    return fd;
+    return 1;
 }
 
 ////////////////////////////////////////////////
@@ -213,8 +213,7 @@ int connectSerialPort(char serialPort[50]){
 int llopen(LinkLayer connectionParameters){
     enum linkState state = START;
     timeout = connectionParameters.timeout;
-    int fd = connectSerialPort(connectionParameters.serialPort);
-    if(fd < 0)
+    if(connectSerialPort(connectionParameters.serialPort) < 0 || fd <0)
         return -1;
 
     switch (connectionParameters.role){
@@ -225,17 +224,17 @@ int llopen(LinkLayer connectionParameters){
                 write(fd, frame, 5);
                 alarm(connectionParameters.timeout);
                 alarmEnabled = FALSE;
-                txStateMachine(&state, fd);
+                txStateMachine(&state);
                 connectionParameters.nRetransmissions--;
             }
             if (state != STOP) return -1;
             break;
         }
         case LlRx:{
-            rcStateMachine(&state, fd);
+            rcStateMachine(&state);
             unsigned char frame[5] = {FLAG, A_RC, C_UA, (A_RC ^ C_UA), FLAG};
             write(fd, frame, 5);
-            txStateMachine(&state, fd);
+            txStateMachine(&state);
             //if (state != STOP) return -1;
             break;
         }
