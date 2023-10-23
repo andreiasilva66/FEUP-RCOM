@@ -242,8 +242,8 @@ int llopen(LinkLayer connectionParameters){
             return -1;
             break;
         }
-        
-    return fd;
+
+    return 1;
 }
 
 
@@ -307,6 +307,7 @@ int getCtrlInfo(){
 // LLWRITE
 ////////////////////////////////////////////////
 int llwrite(const unsigned char *buf, int bufSize){
+    printf("is writing\n");
     unsigned char frame[bufSize+6];
     frame[0] = FLAG;
     frame[1] = A_TX;
@@ -347,6 +348,7 @@ int llwrite(const unsigned char *buf, int bufSize){
         }if(accepted) break;
         transmissionsDone++;
     }
+    printf("is writen\n");
     if( accepted)return bufSize+6;
     else{
         llclose(fd);

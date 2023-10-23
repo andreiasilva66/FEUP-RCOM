@@ -52,8 +52,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename){
     LinkLayer linkLayer;
     strcpy(linkLayer.serialPort,serialPort);
-    if(strcmp(role,"tx")) linkLayer.role = LlTx;
-    else if(strcmp(role,"rx")) linkLayer.role = LlRx;
+    if(strcmp(role,"tx") == 0) linkLayer.role = LlTx;
+    else if(strcmp(role,"rx") == 0) linkLayer.role = LlRx;
     else printf("Invalid role\n");
     linkLayer.baudRate = baudRate;
     linkLayer.nRetransmissions = nTries;
@@ -70,6 +70,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         case LlRx:{
             int packetSize = -1;
             unsigned char* packet = (unsigned char*)malloc(MAX_PAYLOAD_SIZE);
+            printf("antes llread\n");
+
             if((packetSize = llread(packet)) < 0){
                 printf("Error reading packet\n");
                 exit(-1);
@@ -121,6 +123,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             fseek(file, 0L, SEEK_END);
             long int fileSize = ftell(file) - prev;
             fseek(file, prev, SEEK_SET);
+            printf("antes llwrite\n");
 
             long int cpSize;
             unsigned char *ctrlPacketStart = getCtrlPacket(2, filename, fileSize, &cpSize);
