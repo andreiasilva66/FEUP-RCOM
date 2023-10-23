@@ -87,7 +87,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             
 
             unsigned char fileNameBytes = packet[3+fileSizeBytes+1];
-            unsigned char fileName = (unsigned char)malloc(fileNameBytes);
+            unsigned char *fileName = (unsigned char*)malloc(fileNameBytes);
 
             memcpy(fileName, packet + 3 + fileSizeBytes + 2, fileNameBytes);
 
