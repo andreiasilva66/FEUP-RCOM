@@ -9,10 +9,10 @@
 #include <stdlib.h>
 
 
-unsigned char* getCtrlPacket(int which, const char* fileName, long int length){
+unsigned char* getCtrlPacket(int which, const char* fileName, long int length, long int* fileSize){
     const int length1 = (int)ceil(log2f((float)length)/8.0);
     const int length2 = strlen(fileName);
-    long int fileSize = 3 + length1 + 2 + length2;
+    fileSize = 3 + length1 + 2 + length2;
 
     unsigned char* ctrlPacket = (unsigned char*)malloc(fileSize);
 
@@ -64,7 +64,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
 
     int bufSize = MAX_PAYLOAD_SIZE -1;
-    unsigned char buf[bufSize + 1];
+    // unsigned char buf[bufSize + 1];
 
     switch (linkLayer.role){
         case LlRx:{
@@ -91,7 +91,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
             memcpy(fileName, packet + 3 + fileSizeBytes + 2, fileNameBytes);
 
-            FILE* fileOut = fopen((char *) filename, "wb+");
+            FILE* fileOut = fopen(filename, "wb+");
 
             long int readAlready = 0;
             int readingNow;
@@ -123,7 +123,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             fseek(file, prev, SEEK_SET);
 
             unsigned int cpSize;
-            unsigned char *ctrlPacketStart = getCtrlPacket(2, &filename, fileSize);
+            unsigned char *ctrlPacketStart = getCtrlPacket(2, filename, fileSize, &cpSize);
             if(llwrite(ctrlPacketStart, cpSize) < 0){
                 printf("Error sending control packet\n");
                 exit(-1);
