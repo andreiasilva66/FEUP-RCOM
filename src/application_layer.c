@@ -9,12 +9,12 @@
 #include <stdlib.h>
 
 
-unsigned char* getCtrlPacket(int which, const char* fileName, long int length, size_t* fileSize){
-    const int length1 = (int)ceil(log2f((float)length)/8.0);
+unsigned char* getCtrlPacket(int which, const char* fileName, long int length, long int* cp_size){
+    const int length1 = (length +7) >> 3;
     const int length2 = strlen(fileName);
-    *fileSize = 3 + length1 + 2 + length2;
+    *cp_size = 3 + length1 + 2 + length2;
 
-    unsigned char* ctrlPacket = (unsigned char*)malloc(*fileSize);
+    unsigned char* ctrlPacket = (unsigned char*)malloc(*cp_size);
 
     ctrlPacket[0] = which;
     ctrlPacket[1] = 0;
@@ -64,7 +64,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
 
     int bufSize = MAX_PAYLOAD_SIZE -1;
-    // unsigned char buf[bufSize + 1];
+    //unsigned char buf[bufSize + 1];
 
     switch (linkLayer.role){
         case LlRx:{
@@ -91,7 +91,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
             memcpy(fileName, packet + 3 + fileSizeBytes + 2, fileNameBytes);
 
-            FILE* fileOut = fopen(filename, "wb+");
+            FILE* fileOut = fopen((char *) filename, "wb+");
 
             long int readAlready = 0;
             int readingNow;
@@ -122,7 +122,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             long int fileSize = ftell(file) - prev;
             fseek(file, prev, SEEK_SET);
 
-            size_t cpSize;
+            long int cpSize;
             unsigned char *ctrlPacketStart = getCtrlPacket(2, filename, fileSize, &cpSize);
             if(llwrite(ctrlPacketStart, cpSize) < 0){
                 printf("Error sending control packet\n");
@@ -146,9 +146,10 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 which = !which;
             }
 
-            unsigned char* endCtrl = getCtrlPacket(3, filename, ,fileSize);
+            long int cp_size;
+            unsigned char* endCtrl = getCtrlPacket(3, filename, fileSize, &cp_size);
 
-            if(llwrite(endCtrl, fileSize + 5) < 0){
+            if(llwrite(endCtrl, cp_size) < 0){
                 printf("Error sending end control packet\n");
                 exit(-1);
             }
@@ -162,4 +163,3 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     
 
 }
-
