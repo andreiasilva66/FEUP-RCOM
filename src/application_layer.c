@@ -10,7 +10,8 @@
 
 
 unsigned char* getCtrlPacket(int which, const char* fileName, long int length, long int* cp_size){
-    const int length1 = (length +7) >> 3;
+    int numBits = sizeof(int) * 8 - __builtin_clz(length);
+    const int length1 = (numBits+7)/8.0;
     const int length2 = strlen(fileName);
     *cp_size = 3 + length1 + 2 + length2;
 
