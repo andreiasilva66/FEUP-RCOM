@@ -364,7 +364,8 @@ int llwrite(const unsigned char *buf, int bufSize){
         transmissionsDone++;
     }
     printf("is writen\n");
-    if( accepted)return bufSize+6;
+    txFrameCount++;
+    if(accepted)return bufSize+6;
     else{
         llclose(fd);
         return -1;
@@ -441,10 +442,13 @@ int llread(unsigned char *packet){
                         if (bcc2 == acc){
                             printf("state final\n");
                             state = STOP;
-                            unsigned char frame[5] = {FLAG, A_TX, C_SET, (A_RC ^ C_RR(tramaRx)), FLAG};
+                            int c;
+                            if(rcFrameCount % 2 == 0) c = C_RR0;
+                            else c = C_RR1;
+                            unsigned char frame[5] = {FLAG, A_RC, c, (A_RC ^ c), FLAG};
                             write(fd, frame, 5);
                             tramaRx = (tramaRx + 1)%2;
-                            return 1; 
+                            return i; 
                         }
                         else{
                             printf("Error: retransmition\n");
