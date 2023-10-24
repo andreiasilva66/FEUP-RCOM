@@ -308,7 +308,8 @@ int getCtrlInfo(){
 ////////////////////////////////////////////////
 int llwrite(const unsigned char *buf, int bufSize){
     printf("is writing\n");
-    unsigned char frame[bufSize+6];
+    int frameSize = bufSize+6;
+    unsigned char* frame = malloc(frameSize);
     frame[0] = FLAG;
     frame[1] = A_TX;
     if(txFrameCount%2 == 0) frame[2] = C_N0;
@@ -320,6 +321,18 @@ int llwrite(const unsigned char *buf, int bufSize){
 
     for(int i = 0; i < bufSize; i++){
         bcc2 ^= buf[i];
+    }
+
+    int frameCount = 4;
+    for(int i = 4; i < bufSize; i++){
+        if(buf[i] == FLAG || buf[i] == ESC){
+            frameSize++;
+            frame = realloc(frame,frameSize);
+            frame[frameCount] = ESC;
+            frameCount++;
+            frame[frameCount] = buf[i] ^ 0x20;
+        }
+        frameCount++;
     }
 
     frame[bufSize+4] = bcc2;
@@ -360,11 +373,14 @@ int llwrite(const unsigned char *buf, int bufSize){
 // LLREAD
 ////////////////////////////////////////////////
 int llread(unsigned char *packet){
+    printf("entrou no read\n");
     unsigned char byte, field;
     int i = 0;
     enum linkState state = START;
     while(state != STOP){
         if(read(fd, &byte, 1) > 0){
+            printf("leu %x\n", byte);
+
             switch (state){
             case START:
                 if(byte == FLAG) 
@@ -441,7 +457,8 @@ int llread(unsigned char *packet){
             }
         }
     }
-    return -1;
+    printf("chegou ao final de llread\n");
+    return 1;
 }
 
 ////////////////////////////////////////////////

@@ -76,6 +76,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 printf("Error reading packet\n");
                 exit(-1);
             }
+            printf("depois do llread\n");
 
             long int fileSize =0;
             unsigned char fileSizeBytes = packet[2];
