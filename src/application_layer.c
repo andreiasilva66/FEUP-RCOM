@@ -96,7 +96,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             memcpy(fileName, packet + 3 + fileSizeBytes + 2, fileNameBytes);
 
             FILE* fileOut = fopen((char *) filename, "wb+");
-
+            printf("abre o file\n");
             long int readAlready = 0;
             int readingNow;
             while(readAlready < fileSize){
@@ -112,6 +112,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 }
             }
             fclose(fileOut);
+            printf("fecha o file\n");
+            if(llclose(FALSE) < 0) exit(-1);
             break;
             }
         case LlTx:{

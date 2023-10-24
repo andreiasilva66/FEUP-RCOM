@@ -385,43 +385,47 @@ int llread(unsigned char *packet){
 
             switch (state){
             case START:
-                printf("start\n");
-                if(byte == FLAG) 
+                if(byte == FLAG){ 
                     state = FLAG_RCV;
+                    printf("flag\n");}
                 break;
 
             case FLAG_RCV:
-                printf("flag\n");
-                if(byte == A_TX) 
+                if(byte == A_TX){ 
                     state = A_RCV;
-                else if(byte != FLAG)
+                    printf("a\n");}
+                else if(byte != FLAG){
                     state = START;
+                    printf("flag\n");}
                 break;
             
             case A_RCV:
-                printf("a\n");
-                if(byte == C_SET){
+                if(byte == C_N0 || byte == C_N1){
                     state = C_RCV;
                     field = byte;
+                    printf("c\n");
                 }
                     
-                else if(byte == FLAG)
+                else if(byte == FLAG){
+                    printf("flag\n");
                     state = FLAG_RCV;
-                else
+                    }
+                else{
                     state = START;
+                    printf("start\n");
+                    }
                 break;
 
             case C_RCV:
-                printf("c\n");
-                if(byte == (field ^ A_TX)) 
+                if(byte == (field ^ A_TX)){ 
                     state = READING_DATA;
+                    printf("reading\n");}
                 else if(byte == FLAG)
                     state = FLAG_RCV;
                 else
                     state = START;
                 break;
             case READING_DATA:
-                printf("reading\n");
                     if (byte == ESC) state = FOUND_DATA;
                     else if (byte == FLAG){
                         printf("found a flag\n");
@@ -435,11 +439,12 @@ int llread(unsigned char *packet){
                             acc ^= packet[j];
 
                         if (bcc2 == acc){
+                            printf("state final\n");
                             state = STOP;
                             unsigned char frame[5] = {FLAG, A_TX, C_SET, (A_RC ^ C_RR(tramaRx)), FLAG};
                             write(fd, frame, 5);
                             tramaRx = (tramaRx + 1)%2;
-                            return i; 
+                            return 1; 
                         }
                         else{
                             printf("Error: retransmition\n");
