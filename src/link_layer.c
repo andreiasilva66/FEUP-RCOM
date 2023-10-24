@@ -114,6 +114,7 @@ int txStateMachine(enum linkState *state) {
             }
         }
     }
+    printf("tansmissor recebeu a primeira\n");
     return 0;
 }
 
@@ -167,6 +168,7 @@ int rcStateMachine(enum linkState *state) {
             }
         }
     }
+    printf("recetor recebeu a priemria\n");
     return 0;
 }
 
@@ -200,6 +202,8 @@ int connectSerialPort(char serialPort[50]){
     newtio.c_cc[VTIME] = 5;
     newtio.c_cc[VMIN] = 0;
 
+    tcflush(fd, TCIOFLUSH);
+
     if(tcsetattr(fd, TCSANOW, &newtio) == -1){
         perror("tcsettattr");
         return -1;
@@ -220,7 +224,7 @@ int llopen(LinkLayer connectionParameters){
     switch (connectionParameters.role){
         case LlTx:{
             (void) signal(SIGALRM, alarmHandler);
-            while(connectionParameters.nRetransmissions > 0){
+            while(connectionParameters.nRetransmissions > 0 && state != STOP){
                 unsigned char frame[5] = {FLAG, A_TX, C_SET, (A_TX ^ C_SET), FLAG};
                 write(fd, frame, 5);
                 alarm(connectionParameters.timeout);
@@ -235,7 +239,6 @@ int llopen(LinkLayer connectionParameters){
             rcStateMachine(&state);
             unsigned char frame[5] = {FLAG, A_RC, C_UA, (A_RC ^ C_UA), FLAG};
             write(fd, frame, 5);
-            txStateMachine(&state);
             //if (state != STOP) return -1;
             break;
         }
