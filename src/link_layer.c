@@ -44,6 +44,7 @@ enum linkState{
 #define C_DISC 0x0B
 #define ESC 0x7D
 #define BAUDRATE B38400
+#define STUFF_XOR 0x20
 
 int alarmEnabled = FALSE;
 int alarmCount = 0;
@@ -316,27 +317,27 @@ int llwrite(const unsigned char *buf, int bufSize){
     else frame[2] = C_N1;
     frame[3] = (A_TX ^ frame[2]);
 
-    memcpy(frame+4, buf, bufSize);
     unsigned char bcc2 = 0;
-
     for(int i = 0; i < bufSize; i++){
         bcc2 ^= buf[i];
     }
 
     int frameCount = 4;
-    for(int i = 4; i < bufSize; i++){
+    for(int i = 0; i < bufSize; i++){
         if(buf[i] == FLAG || buf[i] == ESC){
             frameSize++;
-            frame = realloc(frame,frameSize);
             frame[frameCount] = ESC;
             frameCount++;
-            frame[frameCount] = buf[i] ^ 0x20;
+            frame[frameCount] = buf[i] ^ STUFF_XOR;
+        }
+        else{
+            frame[frameCount] = buf[i];
         }
         frameCount++;
     }
 
-    frame[bufSize+4] = bcc2;
-    frame[bufSize+5] = FLAG;
+    frame[frameCount++] = bcc2;
+    frame[frameCount] = FLAG;
 
     int transmissionsDone = 0;
     int accepted,rejected = 0;
@@ -383,11 +384,13 @@ int llread(unsigned char *packet){
 
             switch (state){
             case START:
+                printf("start\n");
                 if(byte == FLAG) 
                     state = FLAG_RCV;
                 break;
 
             case FLAG_RCV:
+                printf("flag\n");
                 if(byte == A_TX) 
                     state = A_RCV;
                 else if(byte != FLAG)
@@ -395,6 +398,7 @@ int llread(unsigned char *packet){
                 break;
             
             case A_RCV:
+                printf("a\n");
                 if(byte == C_SET){
                     state = C_RCV;
                     field = byte;
@@ -407,6 +411,7 @@ int llread(unsigned char *packet){
                 break;
 
             case C_RCV:
+                printf("c\n");
                 if(byte == (field ^ A_TX)) 
                     state = READING_DATA;
                 else if(byte == FLAG)
@@ -415,8 +420,11 @@ int llread(unsigned char *packet){
                     state = START;
                 break;
             case READING_DATA:
+                printf("reading\n");
                     if (byte == ESC) state = FOUND_DATA;
                     else if (byte == FLAG){
+                        printf("found a flag\n");
+
                         unsigned char bcc2 = packet[i-1];
                         i--;
                         packet[i] = '\0';
@@ -441,10 +449,13 @@ int llread(unsigned char *packet){
 
                     }
                     else{
+                        printf("normal info\n");
+                        
                         packet[i++] = byte;
                     }
                     break;
             case FOUND_DATA:
+                printf("something to desstuff\n");
                     state = READING_DATA;
                     if (byte == ESC || byte == FLAG) packet[i++] = byte;
                     else{
