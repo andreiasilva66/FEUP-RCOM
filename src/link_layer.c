@@ -326,14 +326,12 @@ int llwrite(const unsigned char *buf, int bufSize){
     for(int i = 0; i < bufSize; i++){
         if(buf[i] == FLAG || buf[i] == ESC){
             frameSize++;
-            frame[frameCount] = ESC;
-            frameCount++;
-            frame[frameCount] = buf[i] ^ STUFF_XOR;
+            frame[frameCount++] = ESC;
+            frame[frameCount++] = buf[i] ^ STUFF_XOR;
         }
         else{
-            frame[frameCount] = buf[i];
+            frame[frameCount++] = buf[i];
         }
-        frameCount++;
     }
 
     frame[frameCount++] = bcc2;
@@ -457,11 +455,7 @@ int llread(unsigned char *packet){
             case FOUND_DATA:
                 printf("something to desstuff\n");
                     state = READING_DATA;
-                    if (byte == ESC || byte == FLAG) packet[i++] = byte;
-                    else{
-                        packet[i++] = ESC;
-                        packet[i++] = byte;
-                    }
+                    packet[i++] = byte ^ STUFF_XOR;
                     break;
             default:
                 break;
