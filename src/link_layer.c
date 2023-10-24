@@ -88,7 +88,7 @@ int txStateMachine(enum linkState *state) {
                 if(byte == C_UA) 
                     *state = C_RCV;
                 else if(byte == FLAG)
-                    *state = FLAG;
+                    *state = FLAG_RCV;
                 else
                     *state = START;
                 break;
@@ -97,7 +97,7 @@ int txStateMachine(enum linkState *state) {
                 if(byte == (C_UA ^ A_RC)) 
                     *state = BCC_OK;
                 else if(byte == FLAG)
-                    *state = FLAG;
+                    *state = FLAG_RCV;
                 else
                     *state = START;
                 break;
@@ -142,7 +142,7 @@ int rcStateMachine(enum linkState *state) {
                 if(byte == C_SET) 
                     *state = C_RCV;
                 else if(byte == FLAG)
-                    *state = FLAG;
+                    *state = FLAG_RCV;
                 else
                     *state = START;
                 break;
@@ -151,7 +151,7 @@ int rcStateMachine(enum linkState *state) {
                 if(byte == (C_SET ^ A_TX)) 
                     *state = BCC_OK;
                 else if(byte == FLAG)
-                    *state = FLAG;
+                    *state = FLAG_RCV;
                 else
                     *state = START;
                 break;
@@ -277,7 +277,7 @@ int getCtrlInfo(){
                         c = byte;
                     }
                     else if(byte == FLAG)
-                        state = FLAG;
+                        state = FLAG_RCV;
                     else
                         state = START;
                     break;
@@ -286,7 +286,7 @@ int getCtrlInfo(){
                     if(byte == (c ^ A_RC)) 
                         state = BCC_OK;
                     else if(byte == FLAG)
-                        state = FLAG;
+                        state = FLAG_RCV;
                     else
                         state = START;
                     break;
@@ -406,7 +406,7 @@ int llread(unsigned char *packet){
                 }
                     
                 else if(byte == FLAG)
-                    state = FLAG;
+                    state = FLAG_RCV;
                 else
                     state = START;
                 break;
@@ -416,7 +416,7 @@ int llread(unsigned char *packet){
                 if(byte == (field ^ A_TX)) 
                     state = READING_DATA;
                 else if(byte == FLAG)
-                    state = FLAG;
+                    state = FLAG_RCV;
                 else
                     state = START;
                 break;
@@ -501,7 +501,7 @@ int llclose(int showStatistics){
                     if(byte == C_DISC) 
                         state = C_RCV;
                     else if(byte == FLAG)
-                        state = FLAG;
+                        state = FLAG_RCV;
                     else
                         state = START;
                     break;
@@ -510,7 +510,7 @@ int llclose(int showStatistics){
                     if(byte == (C_DISC ^ A_RC)) 
                         state = BCC_OK;
                     else if(byte == FLAG)
-                        state = FLAG;
+                        state = FLAG_RCV;
                     else
                         state = START;
                     break;
