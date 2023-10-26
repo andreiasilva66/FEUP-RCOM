@@ -169,6 +169,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
                 //free(buf);
             }
+            free(buf);
             fclose(fileOut);
             printf("fecha o file\n");
             if(llclose(FALSE) < 0) exit(-1);
