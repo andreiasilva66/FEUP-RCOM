@@ -327,13 +327,14 @@ int llwrite(const unsigned char *buf, int bufSize){
 
     unsigned char bcc2 = 0;
     for(int i = 0; i < bufSize; i++){
+        printf("%x\n", buf[i]);
         bcc2 ^= buf[i];
     }
 
     int frameCount = 4;
     for(int i = 0; i < bufSize; i++){
         if(buf[i] == FLAG || buf[i] == ESC){
-            frameSize++;
+            frame = realloc(frame, ++frameSize);
             frame[frameCount++] = ESC;
             frame[frameCount++] = buf[i] ^ STUFF_XOR;
         }
@@ -354,7 +355,7 @@ int llwrite(const unsigned char *buf, int bufSize){
         accepted = 0;
         rejected = 0;
         while(alarmEnabled == FALSE && accepted == 0 && rejected == 0){
-            write(fd,frame, bufSize+6);
+            write(fd,frame, frameSize);
             unsigned char c = getCtrlInfo();
             if(c == 0){
                 continue;
@@ -468,13 +469,13 @@ int llread(unsigned char *packet){
 
                     }
                     else{
-                        //printf("normal info\n");
+                        printf("%x\n", byte);
                         
                         packet[i++] = byte;
                     }
                     break;
             case FOUND_DATA:
-                printf("something to desstuff\n");
+                printf("%x\n", (byte ^ STUFF_XOR));
                 state = READING_DATA;
                 packet[i++] = byte ^ STUFF_XOR;
                 break;

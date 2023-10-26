@@ -167,7 +167,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                     fwrite(buf, 1, buf[1] * 256 + buf[2], fileOut);
                 }
 
-                free(buf);
+                //free(buf);
             }
             fclose(fileOut);
             printf("fecha o file\n");
