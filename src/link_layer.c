@@ -50,7 +50,7 @@ int alarmEnabled = FALSE;
 int alarmCount = 0;
 
 unsigned char tramaTx = 0;
-unsigned char tramaRx = 1;
+unsigned char tramaRx = 0;
 
 // Alarm function handler
 void alarmHandler(int signal){
@@ -59,8 +59,7 @@ void alarmHandler(int signal){
 
     printf("Alarm #%d\n", alarmCount);
 }
-int txFrameCount = 0;
-int rcFrameCount = 0;
+
 int nRetransmissions = 0;
 int timeout = 0;
 int fd;
@@ -256,8 +255,12 @@ int getCtrlInfo(){
     unsigned char c;
     enum linkState state = START;
 
+    printf("inicio getctrlinfo\n");
     while(state != STOP){
+        printf("antes do read\n");
         if(read(fd, &byte, 1) > 0){
+            printf("leu %x\n",byte);
+
             switch (state){
                 case START:
                     if(byte == FLAG) 
@@ -303,6 +306,8 @@ int getCtrlInfo(){
             }
         }
     }
+    printf("fim getctrlinfo\n");
+
     return c;
 }
 
@@ -316,7 +321,7 @@ int llwrite(const unsigned char *buf, int bufSize){
     unsigned char* frame = malloc(frameSize);
     frame[0] = FLAG;
     frame[1] = A_TX;
-    if(txFrameCount%2 == 0) frame[2] = C_N0;
+    if(tramaTx % 2 == 0) frame[2] = C_N0;
     else frame[2] = C_N1;
     frame[3] = (A_TX ^ frame[2]);
 
@@ -359,12 +364,13 @@ int llwrite(const unsigned char *buf, int bufSize){
             }
             else if(c == C_RR0 || c == C_RR1){
                 accepted = 1;
+                tramaTx = (tramaTx+1) % 2;
             }else continue;
-        }if(accepted) break;
+        }
+        if(accepted) break;
         transmissionsDone++;
     }
     printf("is writen\n");
-    txFrameCount++;
     if(accepted)return bufSize+6;
     else{
         llclose(fd);
@@ -382,7 +388,7 @@ int llread(unsigned char *packet){
     enum linkState state = START;
     while(state != STOP){
         if(read(fd, &byte, 1) > 0){
-            printf("leu %x\n", byte);
+            //printf("leu %x\n", byte);
 
             switch (state){
             case START:
@@ -443,7 +449,7 @@ int llread(unsigned char *packet){
                             printf("state final\n");
                             state = STOP;
                             int c;
-                            if(rcFrameCount % 2 == 0) c = C_RR0;
+                            if(tramaRx % 2 == 0) c = C_RR0;
                             else c = C_RR1;
                             unsigned char frame[5] = {FLAG, A_RC, c, (A_RC ^ c), FLAG};
                             write(fd, frame, 5);
@@ -452,23 +458,27 @@ int llread(unsigned char *packet){
                         }
                         else{
                             printf("Error: retransmition\n");
-                            unsigned char frame[5] = {FLAG, A_TX, C_SET, (A_RC ^ C_REJ(tramaRx)), FLAG};
+                            int c;
+                            if(tramaRx % 2 == 0) c = C_REJ0;
+                            else c = C_REJ1; 
+                            unsigned char frame[5] = {FLAG, A_RC, c, (A_RC ^ c), FLAG};
                             write(fd, frame, 5);
                             return -1;
                         };
 
                     }
                     else{
-                        printf("normal info\n");
+                        //printf("normal info\n");
                         
                         packet[i++] = byte;
                     }
                     break;
             case FOUND_DATA:
                 printf("something to desstuff\n");
-                    state = READING_DATA;
-                    packet[i++] = byte ^ STUFF_XOR;
-                    break;
+                state = READING_DATA;
+                packet[i++] = byte ^ STUFF_XOR;
+                break;
+
             default:
                 break;
             }
