@@ -172,7 +172,9 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             free(buf);
             fclose(fileOut);
             printf("fecha o file\n");
+            printf("antes do llclose\n");
             if(llclose(FALSE) < 0) exit(-1);
+            printf("depois do llclose\n");
             break;
             }
         case LlTx:{
@@ -215,7 +217,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
             printf("depois de enviar end packet\n");
 
-            llclose(0);
+            if(llclose(0) < 0) exit(-1);
+            printf("depois do llclose\n");
             break;
             }
         default:

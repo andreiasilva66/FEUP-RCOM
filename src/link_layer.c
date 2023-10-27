@@ -38,6 +38,8 @@ enum linkState{
 #define C_REJ1 0x81
 #define C_N0 0x00
 #define C_N1 0x40
+#define TX 0
+#define RX 1 
 
 #define C_RR(n) ((n << 7) | 0x05)
 #define C_REJ(n) ((n << 7) | 0x01)
@@ -63,6 +65,7 @@ void alarmHandler(int signal){
 int nRetransmissions = 0;
 int timeout = 0;
 int fd;
+int role;
 
 int txStateMachine(enum linkState *state) {
     
@@ -216,12 +219,14 @@ int connectSerialPort(char serialPort[50]){
 ////////////////////////////////////////////////
 int llopen(LinkLayer connectionParameters){
     enum linkState state = START;
+    nRetransmissions = connectionParameters.nRetransmissions;
     timeout = connectionParameters.timeout;
     if(connectSerialPort(connectionParameters.serialPort) < 0 || fd <0)
         return -1;
 
     switch (connectionParameters.role){
         case LlTx:{
+            role = TX;
             (void) signal(SIGALRM, alarmHandler);
             while(connectionParameters.nRetransmissions > 0 && state != STOP){
                 unsigned char frame[5] = {FLAG, A_TX, C_SET, (A_TX ^ C_SET), FLAG};
@@ -235,6 +240,7 @@ int llopen(LinkLayer connectionParameters){
             break;
         }
         case LlRx:{
+            role = RX;
             rcStateMachine(&state);
             unsigned char frame[5] = {FLAG, A_RC, C_UA, (A_RC ^ C_UA), FLAG};
             write(fd, frame, 5);
@@ -496,60 +502,128 @@ int llclose(int showStatistics){
     enum linkState state = START;
     unsigned char byte;
     (void) signal(SIGALRM, alarmHandler);
-    while(nRetransmissions != 0 && state != STOP){
-        unsigned char FRAME[5] = {FLAG, A_TX, C_DISC, A_TX ^ C_DISC, FLAG};
-        write(fd, FRAME, 5);
-        alarm(timeout);
-        alarmEnabled = FALSE;
 
-        while(alarmEnabled == FALSE && state != STOP){
-            if(read(fd, &byte, 1) > 0){
-                switch (state){
-                case START:
-                    if(byte == FLAG) 
-                        state = FLAG_RCV;
-                    break;
+    if(role == TX){
+        int transmissionsDone = 0;
+        while(nRetransmissions > transmissionsDone && state != STOP){
+            unsigned char FRAME[5] = {FLAG, A_TX, C_DISC, A_TX ^ C_DISC, FLAG};
+            write(fd, FRAME, 5);
+            printf("escreveu frame do llclose\n");
+            alarm(timeout);
+            alarmEnabled = FALSE;
 
-                case FLAG_RCV:
-                    if(byte == A_RC) 
-                        state = A_RCV;
-                    else if(byte != FLAG)
-                        state = START;
-                    break;
-                
-                case A_RCV:
-                    if(byte == C_DISC) 
-                        state = C_RCV;
-                    else if(byte == FLAG)
-                        state = FLAG_RCV;
-                    else
-                        state = START;
-                    break;
+            while(alarmEnabled == FALSE && state != STOP){
+                if(read(fd, &byte, 1) > 0){
+                    switch (state){
+                    case START:
+                        if(byte == FLAG) 
+                            state = FLAG_RCV;
+                        break;
 
-                case C_RCV:
-                    if(byte == (C_DISC ^ A_RC)) 
-                        state = BCC_OK;
-                    else if(byte == FLAG)
-                        state = FLAG_RCV;
-                    else
-                        state = START;
-                    break;
+                    case FLAG_RCV:
+                        if(byte == A_RC) 
+                            state = A_RCV;
+                        else if(byte != FLAG)
+                            state = START;
+                        break;
+                    
+                    case A_RCV:
+                        if(byte == C_DISC) 
+                            state = C_RCV;
+                        else if(byte == FLAG)
+                            state = FLAG_RCV;
+                        else
+                            state = START;
+                        break;
 
-                case BCC_OK:
-                    if(byte == FLAG) 
-                        state = STOP;
-                    else
-                        state = START;
-                    break;
+                    case C_RCV:
+                        if(byte == (C_DISC ^ A_RC)) 
+                            state = BCC_OK;
+                        else if(byte == FLAG)
+                            state = FLAG_RCV;
+                        else
+                            state = START;
+                        break;
 
-                default:
-                    break;
+                    case BCC_OK:
+                        if(byte == FLAG) 
+                            state = STOP;
+                        else
+                            state = START;
+                        break;
+
+                    default:
+                        break;
+                    }
                 }
             }
+            if(state != STOP) return -1;
         }
     }
-    if(state != STOP) return -1;
-    unsigned char FRAME[5] = {FLAG, A_TX, C_UA, A_TX ^ C_UA, FLAG};
-    write(fd, FRAME, 5);
-    return close(fd);
+    else{
+        while(state != STOP){
+            printf("antes do read\n");
+                if(read(fd, &byte, 1) > 0){
+                    printf("leu isto %x\n", byte);
+                    switch (state){
+                    case START:
+                        if(byte == FLAG) 
+                            state = FLAG_RCV;
+                        break;
+
+                    case FLAG_RCV:
+                        if(byte == A_TX) 
+                            state = A_RCV;
+                        else if(byte != FLAG)
+                            state = START;
+                        break;
+                    
+                    case A_RCV:
+                        if(byte == C_DISC) 
+                            state = C_RCV;
+                        else if(byte == FLAG)
+                            state = FLAG_RCV;
+                        else
+                            state = START;
+                        break;
+
+                    case C_RCV:
+                        if(byte == (C_DISC ^ A_TX)) 
+                            state = BCC_OK;
+                        else if(byte == FLAG)
+                            state = FLAG_RCV;
+                        else
+                            state = START;
+                        break;
+
+                    case BCC_OK:
+                        if(byte == FLAG) 
+                            state = STOP;
+                        else
+                            state = START;
+                        break;
+
+                    default:
+                        break;
+                    }
+                }
+        }
+        printf("chega ao estado final da ultima no rx\n");
+        unsigned char FRAME[5] = {FLAG, A_RC, C_DISC, A_RC ^ C_DISC, FLAG};
+        write(fd, FRAME, 5);
+    }
+    
+
+    // Restore the old port settings
+    // if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
+    // {
+    //     perror("tcsetattr");
+    //     return -1;
+    // }
+    alarm(0);
+
+    if(close(fd) < 0)
+        return -1;;
+
+    return 1;
 }
