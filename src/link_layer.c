@@ -236,6 +236,7 @@ int llopen(LinkLayer connectionParameters){
                 txStateMachine(&state);
                 connectionParameters.nRetransmissions--;
             }
+            //alarm(0);
             if (state != STOP) return -1;
             break;
         }

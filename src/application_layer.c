@@ -164,7 +164,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 }
                 else{
                     printf("esta a escrever no file\n");
-                    fwrite(buf, 1, buf[1] * 256 + buf[2], fileOut);
+                    fwrite(buf+3, 1, buf[1] * 256 + buf[2], fileOut);
                 }
 
                 //free(buf);
