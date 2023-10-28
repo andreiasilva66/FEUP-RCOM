@@ -30,14 +30,6 @@ int sendCtrlPacket(int which, const char* fileName, long int length){
     i += sizeof(size_t);
     ctrlPacket[i++] = 1; 
     memcpy(ctrlPacket + i, fileName, filename_length);
-    
-    // for(int i = 0; i < filelength; i++){
-    //     ctrlPacket[2 + filelength - i] = length & 0xFF;
-    //     length >>= 8;
-    // }
-
-    // ctrlPacket[3 + filelength] = 1;
-    // ctrlPacket[i] = filename_length;
 
     if(llwrite(ctrlPacket,cp_size) < 0){
         printf("falha ao enviar control packet");
@@ -130,22 +122,6 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
             printf("depois do read control packet\n");
 
-            // long int fileSize =0;
-            // unsigned char fileSizeBytes = packet[2];
-            // unsigned char fileSizeParse[fileSizeBytes];
-
-            // memcpy(fileSizeParse, packet + 3, fileSizeBytes);
-
-            // for(int i = 0; i < fileSizeBytes; i++){
-            //     fileSize |= (fileSizeParse[fileSizeBytes - i - 1] << (8 * i));
-            // }
-            
-
-            // unsigned char fileNameBytes = packet[3+fileSizeBytes+1];
-            // unsigned char *fileName = (unsigned char*)malloc(fileNameBytes);
-
-            // memcpy(fileName, packet + 3 + fileSizeBytes + 2, fileNameBytes);
-
             FILE* fileOut = fopen((char *) filename, "wb+");
 
             if(fileOut == NULL){
@@ -166,8 +142,6 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                     printf("esta a escrever no file\n");
                     fwrite(buf+3, 1, buf[1] * 256 + buf[2], fileOut);
                 }
-
-                //free(buf);
             }
             free(buf);
             fclose(fileOut);

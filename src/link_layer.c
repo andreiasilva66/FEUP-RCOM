@@ -613,14 +613,7 @@ int llclose(int showStatistics){
         unsigned char FRAME[5] = {FLAG, A_RC, C_DISC, A_RC ^ C_DISC, FLAG};
         write(fd, FRAME, 5);
     }
-    
 
-    // Restore the old port settings
-    // if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
-    // {
-    //     perror("tcsetattr");
-    //     return -1;
-    // }
     alarm(0);
 
     if(close(fd) < 0)
