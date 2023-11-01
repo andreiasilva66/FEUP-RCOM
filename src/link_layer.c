@@ -70,9 +70,10 @@ int role;
 int txStateMachine(enum linkState *state) {
     
     unsigned char byte;
+    int result;
     
-    while(*state != STOP && alarmCount < 3){
-        if(read(fd, &byte, 1) > 0){
+    while(*state != STOP){
+        if((result = read(fd, &byte, 1)) > 0){
             switch (*state){
             case START:
                 if(byte == FLAG) 
@@ -115,9 +116,12 @@ int txStateMachine(enum linkState *state) {
                 break;
             }
         }
+        if(result == 0){
+            return 0;
+        }
     }
     printf("tansmissor recebeu a primeira\n");
-    return 0;
+    return 1;
 }
 
 
@@ -229,17 +233,15 @@ int llopen(LinkLayer connectionParameters){
             role = TX;
             (void) signal(SIGALRM, alarmHandler);
             alarmEnabled = FALSE;
+            unsigned char frame[5] = {FLAG, A_TX, C_SET, (A_TX ^ C_SET), FLAG};
             while(connectionParameters.nRetransmissions > 0 && state != STOP){
-                unsigned char frame[5] = {FLAG, A_TX, C_SET, (A_TX ^ C_SET), FLAG};
                 if(alarmEnabled == FALSE){
                     write(fd, frame, 5);
                     alarmEnabled = TRUE;
                     alarm(connectionParameters.timeout);
                 }
-                txStateMachine(&state);
                 connectionParameters.nRetransmissions--;
             }
-            //alarm(0);
             if (state != STOP) return -1;
             break;
         }
@@ -248,7 +250,6 @@ int llopen(LinkLayer connectionParameters){
             rcStateMachine(&state);
             unsigned char frame[5] = {FLAG, A_RC, C_UA, (A_RC ^ C_UA), FLAG};
             write(fd, frame, 5);
-            //if (state != STOP) return -1;
             break;
         }
         default:
@@ -372,7 +373,7 @@ int llwrite(const unsigned char *buf, int bufSize){
         printf("AlarmEnable: %i\n",alarmEnabled);
         if(alarmEnabled == FALSE){
             write(fd,frame, frameSize);
-            sleep(1);
+            //sleep(1);
             transmissionsDone++;
             alarmEnabled = TRUE;
             alarm(timeout);
@@ -509,69 +510,82 @@ int llread(unsigned char *packet){
     return 1;
 }
 
+int txCloseStateMachine(enum linkState *state){
+    unsigned char byte;
+    int result;
+    while(*state != STOP){
+        if((result = read(fd, &byte, 1)) > 0){
+            switch (*state){
+            case START:
+                if(byte == FLAG) 
+                    *state = FLAG_RCV;
+                break;
+
+            case FLAG_RCV:
+                if(byte == A_RC) 
+                    *state = A_RCV;
+                else if(byte != FLAG)
+                    *state = START;
+                break;
+            
+            case A_RCV:
+                if(byte == C_DISC) 
+                    *state = C_RCV;
+                else if(byte == FLAG)
+                    *state = FLAG_RCV;
+                else
+                    *state = START;
+                break;
+
+            case C_RCV:
+                if(byte == (C_DISC ^ A_RC)) 
+                    *state = BCC_OK;
+                else if(byte == FLAG)
+                    *state = FLAG_RCV;
+                else
+                    *state = START;
+                break;
+
+            case BCC_OK:
+                if(byte == FLAG) 
+                    *state = STOP;
+                else
+                    *state = START;
+                break;
+
+            default:
+                break;
+            }
+        }
+        else if(result == 0) return 0;
+    }
+    return 1;
+}
+
 ////////////////////////////////////////////////
 // LLCLOSE
 ////////////////////////////////////////////////
 int llclose(int showStatistics){
     enum linkState state = START;
     unsigned char byte;
-    (void) signal(SIGALRM, alarmHandler);
+    alarmEnabled = FALSE;
+    //(void) signal(SIGALRM, alarmHandler);
 
     if(role == TX){
         int transmissionsDone = 0;
-        while(nRetransmissions > transmissionsDone && state != STOP){
-            unsigned char FRAME[5] = {FLAG, A_TX, C_DISC, A_TX ^ C_DISC, FLAG};
-            write(fd, FRAME, 5);
-            printf("escreveu frame do llclose\n");
-            alarm(timeout);
-            alarmEnabled = FALSE;
-
-            while(alarmEnabled == FALSE && state != STOP){
-                if(read(fd, &byte, 1) > 0){
-                    switch (state){
-                    case START:
-                        if(byte == FLAG) 
-                            state = FLAG_RCV;
-                        break;
-
-                    case FLAG_RCV:
-                        if(byte == A_RC) 
-                            state = A_RCV;
-                        else if(byte != FLAG)
-                            state = START;
-                        break;
-                    
-                    case A_RCV:
-                        if(byte == C_DISC) 
-                            state = C_RCV;
-                        else if(byte == FLAG)
-                            state = FLAG_RCV;
-                        else
-                            state = START;
-                        break;
-
-                    case C_RCV:
-                        if(byte == (C_DISC ^ A_RC)) 
-                            state = BCC_OK;
-                        else if(byte == FLAG)
-                            state = FLAG_RCV;
-                        else
-                            state = START;
-                        break;
-
-                    case BCC_OK:
-                        if(byte == FLAG) 
-                            state = STOP;
-                        else
-                            state = START;
-                        break;
-
-                    default:
-                        break;
-                    }
-                }
+        unsigned char frame[5] = {FLAG, A_TX, C_DISC, A_TX ^ C_DISC, FLAG};
+        while(nRetransmissions > transmissionsDone){
+            if(alarmEnabled == FALSE){
+                write(fd, frame, 5);
+                transmissionsDone++;
+                alarmEnabled = TRUE;
+                alarm(timeout);
             }
-            if(state != STOP) return -1;
+            printf("escreveu frame do llclose\n");
+
+            txCloseStateMachine(&state);
+            
+            if(state == STOP) break;;
         }
     }
     else{
