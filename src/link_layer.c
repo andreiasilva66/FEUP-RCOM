@@ -261,11 +261,13 @@ int getCtrlInfo(){
     unsigned char byte;
     unsigned char c;
     enum linkState state = START;
+    int result;
 
     printf("inicio getctrlinfo\n");
     while(state != STOP){
         printf("antes do read\n");
-        if(read(fd, &byte, 1) > 0){
+        result = read(fd, &byte, 1); 
+        if(result > 0){
             printf("leu %x\n",byte);
 
             switch (state){
@@ -312,6 +314,12 @@ int getCtrlInfo(){
                     break;
             }
         }
+        else if(result == 0){
+            return 0;
+        }
+        else{
+            return -1;
+        }
     }
     printf("fim getctrlinfo\n");
 
@@ -334,7 +342,7 @@ int llwrite(const unsigned char *buf, int bufSize){
 
     unsigned char bcc2 = 0;
     for(int i = 0; i < bufSize; i++){
-        printf("%x\n", buf[i]);
+        printf("%x   ", buf[i]);
         bcc2 ^= buf[i];
     }
 
@@ -354,16 +362,20 @@ int llwrite(const unsigned char *buf, int bufSize){
     frame[frameCount] = FLAG;
 
     int transmissionsDone = 0;
-    int accepted,rejected = 0;
+    int accepted, rejected = 0;
+    alarmEnabled = FALSE;
 
     while( transmissionsDone <= nRetransmissions ){
-        alarmEnabled = FALSE;
-        alarm(timeout);
+
         accepted = 0;
         rejected = 0;
-        while(alarmEnabled == FALSE && accepted == 0 && rejected == 0){
+        if(alarmEnabled == FALSE && accepted == 0 && rejected == 0){
             write(fd,frame, frameSize);
+            transmissionsDone++;
+            alarmEnabled = TRUE;
+            alarm(timeout);
             unsigned char c = getCtrlInfo();
+            printf(" O C recebido foi: %x\n",c);
             if(c == 0){
                 continue;
             }
@@ -376,11 +388,14 @@ int llwrite(const unsigned char *buf, int bufSize){
             }else continue;
         }
         if(accepted) break;
-        transmissionsDone++;
     }
-    printf("is writen\n");
-    if(accepted)return bufSize+6;
+    printf("chega aqui\n");
+    if(accepted){
+        printf("foi aceite\n");
+        return frameSize;
+    } 
     else{
+        printf("nao recebeu bem\n");
         llclose(fd);
         return -1;
     }
@@ -476,7 +491,7 @@ int llread(unsigned char *packet){
 
                     }
                     else{
-                        printf("%x\n", byte);
+                        printf("%x   ", byte);
                         
                         packet[i++] = byte;
                     }
@@ -617,7 +632,9 @@ int llclose(int showStatistics){
     alarm(0);
 
     if(close(fd) < 0)
-        return -1;;
+        return -1;
+    
+    printf("time out: %d\n",timeout);
 
     return 1;
 }
