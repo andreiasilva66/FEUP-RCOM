@@ -17,7 +17,7 @@
 
 int sendCtrlPacket(int which, const char* fileName, long int length){
     int numBits = sizeof(int) * 8 - __builtin_clz(length);
-    size_t filelength = (numBits+7)/8.0;
+    size_t filelength = (numBits+7)/8;
     size_t filename_length = strlen(fileName) + 1;
     long int cp_size = 3 + filelength + 2 + filename_length;
 
@@ -33,8 +33,10 @@ int sendCtrlPacket(int which, const char* fileName, long int length){
 
     if(llwrite(ctrlPacket,cp_size) < 0){
         printf("falha ao enviar control packet");
+        free(ctrlPacket);
         return -1;
     }
+    free(ctrlPacket);
 
     return 1;
 }

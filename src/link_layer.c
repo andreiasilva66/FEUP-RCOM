@@ -56,7 +56,7 @@ unsigned char tramaRx = 0;
 
 // Alarm function handler
 void alarmHandler(int signal){
-    alarmEnabled = TRUE;
+    alarmEnabled = FALSE;
     alarmCount++;
 
     printf("Alarm #%d\n", alarmCount);
@@ -228,11 +228,14 @@ int llopen(LinkLayer connectionParameters){
         case LlTx:{
             role = TX;
             (void) signal(SIGALRM, alarmHandler);
+            alarmEnabled = FALSE;
             while(connectionParameters.nRetransmissions > 0 && state != STOP){
                 unsigned char frame[5] = {FLAG, A_TX, C_SET, (A_TX ^ C_SET), FLAG};
-                write(fd, frame, 5);
-                alarm(connectionParameters.timeout);
-                alarmEnabled = FALSE;
+                if(alarmEnabled == FALSE){
+                    write(fd, frame, 5);
+                    alarmEnabled = TRUE;
+                    alarm(connectionParameters.timeout);
+                }
                 txStateMachine(&state);
                 connectionParameters.nRetransmissions--;
             }
@@ -362,31 +365,26 @@ int llwrite(const unsigned char *buf, int bufSize){
     frame[frameCount] = FLAG;
 
     int transmissionsDone = 0;
-    int accepted, rejected = 0;
+    int accepted = 0;
     alarmEnabled = FALSE;
 
     while( transmissionsDone <= nRetransmissions ){
-
-        accepted = 0;
-        rejected = 0;
-        if(alarmEnabled == FALSE && accepted == 0 && rejected == 0){
+        printf("AlarmEnable: %i\n",alarmEnabled);
+        if(alarmEnabled == FALSE){
             write(fd,frame, frameSize);
+            sleep(1);
             transmissionsDone++;
             alarmEnabled = TRUE;
             alarm(timeout);
-            unsigned char c = getCtrlInfo();
-            printf(" O C recebido foi: %x\n",c);
-            if(c == 0){
-                continue;
-            }
-            else if(c == C_REJ0 || c == C_REJ1){
-                rejected = 1;
-            }
-            else if(c == C_RR0 || c == C_RR1){
-                accepted = 1;
-                tramaTx = (tramaTx+1) % 2;
-            }else continue;
         }
+        unsigned char c = getCtrlInfo();
+        printf(" O C recebido foi: %x\n",c);
+        
+        if(c == C_RR0 || c == C_RR1){
+            accepted = 1;
+            tramaTx = (tramaTx+1) % 2;
+        }
+        
         if(accepted) break;
     }
     printf("chega aqui\n");
