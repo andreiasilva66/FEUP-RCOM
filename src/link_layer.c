@@ -475,8 +475,10 @@ int llread(unsigned char *packet){
                             else c = C_RR1;
                             unsigned char frame[5] = {FLAG, A_RC, c, (A_RC ^ c), FLAG};
                             write(fd, frame, 5);
-                            tramaRx = (tramaRx + 1)%2;
-                            return i; 
+                            if((tramaRx % 2 == 0 && field == C_N0) || ( tramaRx % 2 == 1 && field == C_N1))
+                                tramaRx = (tramaRx + 1)%2;
+                            else i = 0;
+                            return i;
                         }
                         else{
                             printf("Error: retransmition\n");
@@ -562,6 +564,10 @@ int txCloseStateMachine(enum linkState *state){
     return 1;
 }
 
+void printStatistics(){
+
+}
+
 ////////////////////////////////////////////////
 // LLCLOSE
 ////////////////////////////////////////////////
@@ -569,7 +575,6 @@ int llclose(int showStatistics){
     enum linkState state = START;
     unsigned char byte;
     alarmEnabled = FALSE;
-    //(void) signal(SIGALRM, alarmHandler);
 
     if(role == TX){
         int transmissionsDone = 0;
@@ -646,7 +651,9 @@ int llclose(int showStatistics){
     if(close(fd) < 0)
         return -1;
     
-    printf("time out: %d\n",timeout);
+    if(showStatistics){
+        printStatistics();
+    }
 
     return 1;
 }
