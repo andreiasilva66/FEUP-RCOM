@@ -32,7 +32,7 @@ int sendCtrlPacket(int which, const char* fileName, long int length){
     memcpy(ctrlPacket + i, fileName, filename_length);
 
     if(llwrite(ctrlPacket,cp_size) < 0){
-        printf("falha ao enviar control packet");
+        printf("Failed to send control packet\n");
         free(ctrlPacket);
         return -1;
     }
@@ -118,7 +118,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             printf("antes de ler start packet\n");
 
             if(readCtrlPacket(START_PCKT, buf, &packetSize, receivedFilename) < 0){
-                printf("Error readind control file");
+                printf("Error readind control file\n");
                 exit(-1);
             }
 

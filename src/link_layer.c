@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <time.h>
 
 #define BIT(n) 1 << n
 
@@ -67,6 +68,7 @@ int timeout = 0;
 int fd;
 int role;
 int frameI, frameS, frameU, duplicatedFrame, frameRej = 0;
+clock_t start_t, end_t;
 
 int txStateMachine(enum linkState *state) {
     
@@ -121,7 +123,6 @@ int txStateMachine(enum linkState *state) {
             return 0;
         }
     }
-    printf("tansmissor recebeu a primeira\n");
     return 1;
 }
 
@@ -174,7 +175,6 @@ int rcStateMachine(enum linkState *state) {
             }
         }
     }
-    printf("recetor recebeu a priemria\n");
     return 0;
 }
 
@@ -263,7 +263,7 @@ int llopen(LinkLayer connectionParameters){
             return -1;
             break;
         }
-
+    start_t = clock();
     return 1;
 }
 
@@ -274,12 +274,9 @@ int getCtrlInfo(){
     enum linkState state = START;
     int result;
 
-    printf("inicio getctrlinfo\n");
     while(state != STOP){
-        printf("antes do read\n");
         result = read(fd, &byte, 1); 
         if(result > 0){
-            printf("leu %x\n",byte);
 
             switch (state){
                 case START:
@@ -332,7 +329,6 @@ int getCtrlInfo(){
             return -1;
         }
     }
-    printf("fim getctrlinfo\n");
 
     return c;
 }
@@ -342,7 +338,6 @@ int getCtrlInfo(){
 // LLWRITE
 ////////////////////////////////////////////////
 int llwrite(const unsigned char *buf, int bufSize){
-    printf("is writing\n");
     int frameSize = bufSize+6;
     unsigned char* frame = malloc(frameSize);
     frame[0] = FLAG;
@@ -353,7 +348,6 @@ int llwrite(const unsigned char *buf, int bufSize){
 
     unsigned char bcc2 = 0;
     for(int i = 0; i < bufSize; i++){
-        printf("%x   ", buf[i]);
         bcc2 ^= buf[i];
     }
 
@@ -377,7 +371,6 @@ int llwrite(const unsigned char *buf, int bufSize){
     alarmEnabled = FALSE;
 
     while( transmissionsDone <= nRetransmissions ){
-        printf("AlarmEnable: %i\n",alarmEnabled);
         if(alarmEnabled == FALSE){
             write(fd,frame, frameSize);
             frameI++;
@@ -386,7 +379,6 @@ int llwrite(const unsigned char *buf, int bufSize){
             alarm(timeout);
         }
         unsigned char c = getCtrlInfo();
-        printf(" O C recebido foi: %x\n",c);
         
         if(c == C_RR0 || c == C_RR1){
             accepted = 1;
@@ -400,9 +392,7 @@ int llwrite(const unsigned char *buf, int bufSize){
         }
     }
     free(frame);
-    printf("chega aqui\n");
     if(accepted){
-        printf("foi aceite\n");
         return frameSize;
     } 
     else{
@@ -416,51 +406,42 @@ int llwrite(const unsigned char *buf, int bufSize){
 // LLREAD
 ////////////////////////////////////////////////
 int llread(unsigned char *packet){
-    printf("entrou no read\n");
     unsigned char byte, field;
     int i = 0;
     enum linkState state = START;
     while(state != STOP){
         if(read(fd, &byte, 1) > 0){
-            //printf("leu %x\n", byte);
 
             switch (state){
             case START:
                 if(byte == FLAG){ 
-                    state = FLAG_RCV;
-                    printf("flag\n");}
+                    state = FLAG_RCV;}
                 break;
 
             case FLAG_RCV:
                 if(byte == A_TX){ 
-                    state = A_RCV;
-                    printf("a\n");}
+                    state = A_RCV;}
                 else if(byte != FLAG){
-                    state = START;
-                    printf("flag\n");}
+                    state = START;}
                 break;
             
             case A_RCV:
                 if(byte == C_N0 || byte == C_N1){
                     state = C_RCV;
                     field = byte;
-                    printf("c\n");
                 }
                     
                 else if(byte == FLAG){
-                    printf("flag\n");
                     state = FLAG_RCV;
                     }
                 else{
                     state = START;
-                    printf("start\n");
                     }
                 break;
 
             case C_RCV:
                 if(byte == (field ^ A_TX)){ 
-                    state = READING_DATA;
-                    printf("reading\n");}
+                    state = READING_DATA;}
                 else if(byte == FLAG)
                     state = FLAG_RCV;
                 else
@@ -469,7 +450,6 @@ int llread(unsigned char *packet){
             case READING_DATA:
                     if (byte == ESC) state = FOUND_DATA;
                     else if (byte == FLAG){
-                        printf("found a flag\n");
 
                         unsigned char bcc2 = packet[i-1];
                         i--;
@@ -480,7 +460,6 @@ int llread(unsigned char *packet){
                             acc ^= packet[j];
 
                         if (bcc2 == acc){
-                            printf("state final\n");
                             state = STOP;
                             int c;
                             if(tramaRx % 2 == 0) c = C_RR0;
@@ -494,12 +473,10 @@ int llread(unsigned char *packet){
                                 duplicatedFrame++;
                             } 
                             frameI++;
-                            printf("chegou AO FINAL de uma frame bem lida\n");
                             frameS++;
                             return i;
                         }
                         else{
-                            printf("Error: retransmition\n");
                             int c;
                             if(tramaRx % 2 == 0) c = C_REJ0;
                             else c = C_REJ1; 
@@ -512,13 +489,10 @@ int llread(unsigned char *packet){
 
                     }
                     else{
-                        printf("%x   ", byte);
-                        
                         packet[i++] = byte;
                     }
                     break;
             case FOUND_DATA:
-                printf("%x\n", (byte ^ STUFF_XOR));
                 state = READING_DATA;
                 packet[i++] = byte ^ STUFF_XOR;
                 break;
@@ -528,7 +502,6 @@ int llread(unsigned char *packet){
             }
         }
     }
-    printf("chegou ao final de llread\n");
     return 1;
 }
 
@@ -585,6 +558,7 @@ int txCloseStateMachine(enum linkState *state){
 }
 
 void rxStatistics(){
+    double time_t = (double)(end_t - start_t) / CLOCKS_PER_SEC;
     printf("|==================================================================|\n");
     printf("|                         RECEIVER STATISTICS                      |\n");
     printf("|==================================================================|\n");
@@ -597,6 +571,8 @@ void rxStatistics(){
     printf("|     DUPLICATED FRAMES RECEIVED     |               %i             |\n",duplicatedFrame);
     printf("|------------------------------------------------------------------|\n");
     printf("|          FRAMES REJECTED           |               %i             |\n",frameRej);
+    printf("|------------------------------------------------------------------|\n");
+    printf("|         TRANSMITION TIME           |           %f          |\n",time_t);
     printf("|==================================================================|\n");
 
 
@@ -605,14 +581,17 @@ void rxStatistics(){
 
 
 void txStatistics(){
-    printf("====================================================================\n");
+    double time_t = (double)(end_t - start_t) / CLOCKS_PER_SEC;
+    printf("|==================================================================|\n");
     printf("|                       TRANSMITTER STATISTICS                     |\n");
-    printf("====================================================================\n");
+    printf("|==================================================================|\n");
     printf("|       INFORMATION FRAMES SENT      |               %i            |\n",frameI);
     printf("|------------------------------------------------------------------|\n");
     printf("|       UNNUMBERED FRAMES SENT       |               %i             |\n",frameU);
     printf("|------------------------------------------------------------------|\n");
     printf("|    SUPERVISION FRAMES RECEIVED     |               %i            |\n",frameS);
+    printf("|------------------------------------------------------------------|\n");
+    printf("|         TRANSMITION TIME           |           %f          |\n",time_t);
     printf("|==================================================================|\n");
 }
 
@@ -621,6 +600,7 @@ void txStatistics(){
 // LLCLOSE
 ////////////////////////////////////////////////
 int llclose(int showStatistics){
+    end_t = clock();
     enum linkState state = START;
     unsigned char byte;
     alarmEnabled = FALSE;
