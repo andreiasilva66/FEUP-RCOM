@@ -136,6 +136,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             int dataSize;
             while((dataSize = llread(buf)) >= 0){
 
+                if(dataSize == 0) continue;
+
                 if(buf[0] == END_PCKT){
                     printf("recebeu packet final\n");
                     break;
@@ -149,7 +151,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             fclose(fileOut);
             printf("fecha o file\n");
             printf("antes do llclose\n");
-            if(llclose(FALSE) < 0) exit(-1);
+            if(llclose(TRUE) < 0) exit(-1);
             printf("depois do llclose\n");
             break;
             }
@@ -193,7 +195,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
             printf("depois de enviar end packet\n");
 
-            if(llclose(0) < 0) exit(-1);
+            if(llclose(1) < 0) exit(-1);
             printf("depois do llclose\n");
             break;
             }

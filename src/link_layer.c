@@ -66,6 +66,7 @@ int nRetransmissions = 0;
 int timeout = 0;
 int fd;
 int role;
+int frameI, frameS, frameU, duplicatedFrame, frameRej = 0;
 
 int txStateMachine(enum linkState *state) {
     
@@ -128,7 +129,6 @@ int txStateMachine(enum linkState *state) {
 int rcStateMachine(enum linkState *state) {
     
     unsigned char byte;
-    
     while(*state != STOP){
         if(read(fd, &byte, 1) > 0){
             switch (*state){
@@ -237,19 +237,26 @@ int llopen(LinkLayer connectionParameters){
             while(connectionParameters.nRetransmissions > 0 && state != STOP){
                 if(alarmEnabled == FALSE){
                     write(fd, frame, 5);
+                    frameU++;
                     alarmEnabled = TRUE;
                     alarm(connectionParameters.timeout);
+                    
                 }
                 connectionParameters.nRetransmissions--;
+                txStateMachine(&state);
             }
+            
             if (state != STOP) return -1;
+            frameS++;
             break;
         }
         case LlRx:{
             role = RX;
             rcStateMachine(&state);
+            frameU++;
             unsigned char frame[5] = {FLAG, A_RC, C_UA, (A_RC ^ C_UA), FLAG};
             write(fd, frame, 5);
+            frameS++;
             break;
         }
         default:
@@ -373,7 +380,7 @@ int llwrite(const unsigned char *buf, int bufSize){
         printf("AlarmEnable: %i\n",alarmEnabled);
         if(alarmEnabled == FALSE){
             write(fd,frame, frameSize);
-            //sleep(1);
+            frameI++;
             transmissionsDone++;
             alarmEnabled = TRUE;
             alarm(timeout);
@@ -383,19 +390,24 @@ int llwrite(const unsigned char *buf, int bufSize){
         
         if(c == C_RR0 || c == C_RR1){
             accepted = 1;
+            frameS++;
             tramaTx = (tramaTx+1) % 2;
+            break;
         }
-        
-        if(accepted) break;
+        else if(c == C_REJ0 || c == C_REJ1){
+            alarmEnabled = FALSE;
+            frameS++;
+        }
     }
+    free(frame);
     printf("chega aqui\n");
     if(accepted){
         printf("foi aceite\n");
         return frameSize;
     } 
     else{
-        printf("nao recebeu bem\n");
-        llclose(fd);
+        printf("The program exceeded the number of retransmissions\n");
+        llclose(0);
         return -1;
     }
 }
@@ -477,7 +489,13 @@ int llread(unsigned char *packet){
                             write(fd, frame, 5);
                             if((tramaRx % 2 == 0 && field == C_N0) || ( tramaRx % 2 == 1 && field == C_N1))
                                 tramaRx = (tramaRx + 1)%2;
-                            else i = 0;
+                            else{
+                                i = 0;
+                                duplicatedFrame++;
+                            } 
+                            frameI++;
+                            printf("chegou AO FINAL de uma frame bem lida\n");
+                            frameS++;
                             return i;
                         }
                         else{
@@ -487,6 +505,8 @@ int llread(unsigned char *packet){
                             else c = C_REJ1; 
                             unsigned char frame[5] = {FLAG, A_RC, c, (A_RC ^ c), FLAG};
                             write(fd, frame, 5);
+                            frameRej++;
+                            frameS++;
                             return -1;
                         };
 
@@ -564,9 +584,38 @@ int txCloseStateMachine(enum linkState *state){
     return 1;
 }
 
-void printStatistics(){
+void rxStatistics(){
+    printf("|==================================================================|\n");
+    printf("|                         RECEIVER STATISTICS                      |\n");
+    printf("|==================================================================|\n");
+    printf("|     INFORMATION FRAMES RECEIVED    |               %i            |\n",frameI);
+    printf("|------------------------------------------------------------------|\n");
+    printf("|     UNNUMBERED FRAMES RECEIVED     |               %i             |\n",frameU);
+    printf("|------------------------------------------------------------------|\n");
+    printf("|      SUPERVISION FRAMES SENT       |               %i            |\n",frameS);
+    printf("|------------------------------------------------------------------|\n");
+    printf("|     DUPLICATED FRAMES RECEIVED     |               %i             |\n",duplicatedFrame);
+    printf("|------------------------------------------------------------------|\n");
+    printf("|          FRAMES REJECTED           |               %i             |\n",frameRej);
+    printf("|==================================================================|\n");
+
+
 
 }
+
+
+void txStatistics(){
+    printf("====================================================================\n");
+    printf("|                       TRANSMITTER STATISTICS                     |\n");
+    printf("====================================================================\n");
+    printf("|       INFORMATION FRAMES SENT      |               %i            |\n",frameI);
+    printf("|------------------------------------------------------------------|\n");
+    printf("|       UNNUMBERED FRAMES SENT       |               %i             |\n",frameU);
+    printf("|------------------------------------------------------------------|\n");
+    printf("|    SUPERVISION FRAMES RECEIVED     |               %i            |\n",frameS);
+    printf("|==================================================================|\n");
+}
+
 
 ////////////////////////////////////////////////
 // LLCLOSE
@@ -585,6 +634,7 @@ int llclose(int showStatistics){
                 transmissionsDone++;
                 alarmEnabled = TRUE;
                 alarm(timeout);
+                frameU++;
             }
             printf("escreveu frame do llclose\n");
 
@@ -641,6 +691,7 @@ int llclose(int showStatistics){
                     }
                 }
         }
+        frameU++;
         printf("chega ao estado final da ultima no rx\n");
         unsigned char FRAME[5] = {FLAG, A_RC, C_DISC, A_RC ^ C_DISC, FLAG};
         write(fd, FRAME, 5);
@@ -651,8 +702,11 @@ int llclose(int showStatistics){
     if(close(fd) < 0)
         return -1;
     
-    if(showStatistics){
-        printStatistics();
+    if(showStatistics && role == RX){
+        rxStatistics();
+    }
+    else if(showStatistics && role == TX){
+        txStatistics();
     }
 
     return 1;
