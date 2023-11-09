@@ -13,8 +13,6 @@
 #include <signal.h>
 #include <time.h>
 
-#define BIT(n) 1 << n
-
 enum linkState{
     START,
     FLAG_RCV,
@@ -65,7 +63,7 @@ int timeout = 0;
 int fd;
 int role;
 int frameI, frameS, frameU, duplicatedFrame, frameRej = 0;
-clock_t start_t, end_t;
+clock_t start_t, end_t = 0;
 
 int txOpenStateMachine(enum linkState *state) {
     
@@ -259,7 +257,7 @@ int llopen(LinkLayer connectionParameters){
             return -1;
             break;
         }
-    start_t = clock();
+    
     return 1;
 }
 
@@ -334,6 +332,7 @@ int getCtrlInfo(){
 // LLWRITE
 ////////////////////////////////////////////////
 int llwrite(const unsigned char *buf, int bufSize){
+    if(!start_t) start_t = clock();
     int frameSize = bufSize+6;
     unsigned char* frame = malloc(frameSize);
     frame[0] = FLAG;
@@ -436,6 +435,7 @@ int llread(unsigned char *packet){
                 break;
 
             case C_RCV:
+                //int r = rand() % 
                 if(byte == (field ^ A_TX)){ 
                     state = READING_DATA;}
                 else if(byte == FLAG)
