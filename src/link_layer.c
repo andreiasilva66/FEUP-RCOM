@@ -257,7 +257,7 @@ int llopen(LinkLayer connectionParameters){
             return -1;
             break;
         }
-    
+    start_t = clock();
     return 1;
 }
 
@@ -332,7 +332,6 @@ int getCtrlInfo(){
 // LLWRITE
 ////////////////////////////////////////////////
 int llwrite(const unsigned char *buf, int bufSize){
-    if(!start_t) start_t = clock();
     int frameSize = bufSize+6;
     unsigned char* frame = malloc(frameSize);
     frame[0] = FLAG;
@@ -395,14 +394,12 @@ int llwrite(const unsigned char *buf, int bufSize){
         llclose(0);
         return -1;
     }
-    end_t = clock();
 }
 
 ////////////////////////////////////////////////
 // LLREAD
 ////////////////////////////////////////////////
 int llread(unsigned char *packet){
-    if(!start_t) start_t = clock();
     unsigned char byte, field;
     int i = 0;
     enum linkState state = START;
@@ -500,7 +497,6 @@ int llread(unsigned char *packet){
             }
         }
     }
-    end_t = clock();
     return 1;
 }
 
@@ -599,6 +595,7 @@ void txStatistics(){
 // LLCLOSE
 ////////////////////////////////////////////////
 int llclose(int showStatistics){
+    end_t = clock();
     enum linkState state = START;
     unsigned char byte;
     alarmEnabled = FALSE;
