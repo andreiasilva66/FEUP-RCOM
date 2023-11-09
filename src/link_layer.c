@@ -41,9 +41,6 @@ enum linkState{
 #define C_N1 0x40
 #define TX 0
 #define RX 1 
-
-#define C_RR(n) ((n << 7) | 0x05)
-#define C_REJ(n) ((n << 7) | 0x01)
 #define C_DISC 0x0B
 #define ESC 0x7D
 #define BAUDRATE B38400
@@ -70,7 +67,7 @@ int role;
 int frameI, frameS, frameU, duplicatedFrame, frameRej = 0;
 clock_t start_t, end_t;
 
-int txStateMachine(enum linkState *state) {
+int txOpenStateMachine(enum linkState *state) {
     
     unsigned char byte;
     int result;
@@ -127,7 +124,7 @@ int txStateMachine(enum linkState *state) {
 }
 
 
-int rcStateMachine(enum linkState *state) {
+int rcOpenStateMachine(enum linkState *state) {
     
     unsigned char byte;
     while(*state != STOP){
@@ -240,10 +237,9 @@ int llopen(LinkLayer connectionParameters){
                     frameU++;
                     alarmEnabled = TRUE;
                     alarm(connectionParameters.timeout);
-                    
+                    connectionParameters.nRetransmissions--;
                 }
-                connectionParameters.nRetransmissions--;
-                txStateMachine(&state);
+                txOpenStateMachine(&state);
             }
             
             if (state != STOP) return -1;
@@ -252,7 +248,7 @@ int llopen(LinkLayer connectionParameters){
         }
         case LlRx:{
             role = RX;
-            rcStateMachine(&state);
+            rcOpenStateMachine(&state);
             frameU++;
             unsigned char frame[5] = {FLAG, A_RC, C_UA, (A_RC ^ C_UA), FLAG};
             write(fd, frame, 5);
