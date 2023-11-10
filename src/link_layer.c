@@ -63,7 +63,7 @@ int timeout = 0;
 int fd;
 int role;
 int frameI, frameS, frameU, duplicatedFrame, frameRej = 0;
-clock_t start_t, end_t = 0;
+time_t start_t, end_t;
 
 int txOpenStateMachine(enum linkState *state) {
     
@@ -257,7 +257,7 @@ int llopen(LinkLayer connectionParameters){
             return -1;
             break;
         }
-    start_t = clock();
+    time(&start_t);
     return 1;
 }
 
@@ -400,6 +400,7 @@ int llwrite(const unsigned char *buf, int bufSize){
 // LLREAD
 ////////////////////////////////////////////////
 int llread(unsigned char *packet){
+    int r2, r;
     unsigned char byte, field;
     int i = 0;
     enum linkState state = START;
@@ -434,7 +435,8 @@ int llread(unsigned char *packet){
                 break;
 
             case C_RCV:
-                //int r = rand() % 
+                r = rand() % 100;
+                if(r < 20) byte = 0; 
                 if(byte == (field ^ A_TX)){ 
                     state = READING_DATA;}
                 else if(byte == FLAG)
@@ -453,6 +455,9 @@ int llread(unsigned char *packet){
 
                         for (unsigned int j = 1; j < i; j++)
                             acc ^= packet[j];
+
+                        r2 = rand() % 100;
+                        if(r2 < 20)byte= 0;
 
                         if (bcc2 == acc){
                             state = STOP;
@@ -553,7 +558,7 @@ int txCloseStateMachine(enum linkState *state){
 }
 
 void rxStatistics(){
-    double time_t = (double)(end_t - start_t) / CLOCKS_PER_SEC;
+    double time = (double)(end_t - start_t);
     printf("|==================================================================|\n");
     printf("|                         RECEIVER STATISTICS                      |\n");
     printf("|==================================================================|\n");
@@ -567,7 +572,7 @@ void rxStatistics(){
     printf("|------------------------------------------------------------------|\n");
     printf("|          FRAMES REJECTED           |               %i             |\n",frameRej);
     printf("|------------------------------------------------------------------|\n");
-    printf("|         TRANSMITION TIME           |           %f          |\n",time_t);
+    printf("|         TRANSMITION TIME           |           %f          |\n",time);
     printf("|==================================================================|\n");
 
 
@@ -576,7 +581,7 @@ void rxStatistics(){
 
 
 void txStatistics(){
-    double time_t = (double)(end_t - start_t) / CLOCKS_PER_SEC;
+    double time = (double)(end_t - start_t);
     printf("|==================================================================|\n");
     printf("|                       TRANSMITTER STATISTICS                     |\n");
     printf("|==================================================================|\n");
@@ -586,7 +591,7 @@ void txStatistics(){
     printf("|------------------------------------------------------------------|\n");
     printf("|    SUPERVISION FRAMES RECEIVED     |               %i            |\n",frameS);
     printf("|------------------------------------------------------------------|\n");
-    printf("|         TRANSMITION TIME           |           %f          |\n",time_t);
+    printf("|         TRANSMITION TIME           |           %f          |\n",time);
     printf("|==================================================================|\n");
 }
 
@@ -595,7 +600,7 @@ void txStatistics(){
 // LLCLOSE
 ////////////////////////////////////////////////
 int llclose(int showStatistics){
-    end_t = clock();
+    time(&end_t);
     enum linkState state = START;
     unsigned char byte;
     alarmEnabled = FALSE;
