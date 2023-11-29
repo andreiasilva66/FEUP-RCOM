@@ -400,7 +400,6 @@ int llwrite(const unsigned char *buf, int bufSize){
 // LLREAD
 ////////////////////////////////////////////////
 int llread(unsigned char *packet){
-    int r2, r;
     unsigned char byte, field;
     int i = 0;
     enum linkState state = START;
@@ -435,8 +434,6 @@ int llread(unsigned char *packet){
                 break;
 
             case C_RCV:
-                r = rand() % 100;
-                if(r < 20) byte = 0; 
                 if(byte == (field ^ A_TX)){ 
                     state = READING_DATA;}
                 else if(byte == FLAG)
@@ -455,9 +452,6 @@ int llread(unsigned char *packet){
 
                         for (unsigned int j = 1; j < i; j++)
                             acc ^= packet[j];
-
-                        r2 = rand() % 100;
-                        if(r2 < 20)byte= 0;
 
                         if (bcc2 == acc){
                             state = STOP;
